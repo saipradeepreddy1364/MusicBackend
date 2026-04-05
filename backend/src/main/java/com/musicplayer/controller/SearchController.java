@@ -25,45 +25,45 @@ public class SearchController {
     @GetMapping
     @Operation(summary = "Global search across all categories")
     public ResponseEntity<ApiResponse<Object>> searchAll(
-            @RequestParam @NotBlank String q,
+            @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.search(q, page, limit)));
+        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.search(query, page, limit)));
     }
 
     @GetMapping("/songs")
     @Operation(summary = "Search songs")
     public ResponseEntity<ApiResponse<Object>> searchSongs(
-            @RequestParam @NotBlank String q,
+            @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchSongs(q, page, limit)));
+        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchSongs(query, page, limit)));
     }
 
     @GetMapping("/albums")
     @Operation(summary = "Search albums")
     public ResponseEntity<ApiResponse<Object>> searchAlbums(
-            @RequestParam @NotBlank String q,
+            @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchAlbums(q, page, limit)));
+        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchAlbums(query, page, limit)));
     }
 
     @GetMapping("/artists")
     @Operation(summary = "Search artists")
     public ResponseEntity<ApiResponse<Object>> searchArtists(
-            @RequestParam @NotBlank String q,
+            @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchArtists(q, page, limit)));
+        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchArtists(query, page, limit)));
     }
 
     @GetMapping("/playlists")
     @Operation(summary = "Search playlists")
     public ResponseEntity<ApiResponse<Object>> searchPlaylists(
-            @RequestParam @NotBlank String q,
+            @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchPlaylists(q, page, limit)));
+        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchPlaylists(query, page, limit)));
     }
 }

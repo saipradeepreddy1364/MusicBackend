@@ -17,7 +17,7 @@ public class HealthController {
 
     private final WebClient jiosaavnClient;
 
-    @Value("${saavn.base-url:https://saavn.dev/api}")
+    @Value("${saavn.base-url:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}")
     private String saavnBaseUrl;
 
     public HealthController(WebClient jiosaavnClient) {

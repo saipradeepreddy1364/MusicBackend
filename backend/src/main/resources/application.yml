@@ -11,9 +11,9 @@ spring:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=300s
 
-# saavn.dev — JioSaavn unofficial API (called directly, no proxy)
+# JioSaavn unofficial API via Cloudflare Workers (saavn.dev is DNS-blocked in India)
 saavn:
-  base-url: ${SAAVN_BASE_URL:https://saavn.dev/api}
+  base-url: ${SAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}
 
 # Springdoc Swagger
 springdoc:
