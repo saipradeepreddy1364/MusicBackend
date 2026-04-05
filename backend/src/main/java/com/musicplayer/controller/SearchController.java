@@ -20,7 +20,7 @@ public class SearchController {
 
     private final JioSaavnService jiosaavnService;
 
-    // ── All ──────────────────────────────────────────────────────────────────
+    // ── All ───────────────────────────────────────────────────────────────────
 
     @GetMapping
     @Operation(summary = "Global search across all categories")

@@ -19,8 +19,7 @@ public class HealthController {
 
     private final WebClient jiosaavnClient;
 
-    // ✅ FIXED (separate declaration properly)
-    @Value("${saavn.base-url:https://saavn.me}")
+    @Value("${saavn.base-url:https://saavn.dev/api}")
     private String saavnBaseUrl;
 
     @GetMapping
