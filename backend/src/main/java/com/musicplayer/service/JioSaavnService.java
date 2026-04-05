@@ -1,6 +1,7 @@
 package com.musicplayer.service;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -9,8 +10,9 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.util.Map;
 
 @Service
-@Slf4j
 public class JioSaavnService {
+
+    private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
     private final WebClient webClient;
 

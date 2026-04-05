@@ -5,19 +5,21 @@ import com.musicplayer.service.JioSaavnService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/artists")
-@RequiredArgsConstructor
 @Validated
 @Tag(name = "Artists", description = "Get artist profiles, songs and albums")
 public class ArtistController {
 
     private final JioSaavnService jiosaavnService;
+
+    public ArtistController(JioSaavnService jiosaavnService) {
+        this.jiosaavnService = jiosaavnService;
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get artist profile by ID")

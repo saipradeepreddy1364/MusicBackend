@@ -6,21 +6,21 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/search")
-@RequiredArgsConstructor
 @Validated
 @Tag(name = "Search", description = "Search songs, albums, artists, playlists")
 public class SearchController {
 
     private final JioSaavnService jiosaavnService;
 
-    // ── All ───────────────────────────────────────────────────────────────────
+    public SearchController(JioSaavnService jiosaavnService) {
+        this.jiosaavnService = jiosaavnService;
+    }
 
     @GetMapping
     @Operation(summary = "Global search across all categories")
@@ -31,8 +31,6 @@ public class SearchController {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.search(q, page, limit)));
     }
 
-    // ── Songs ─────────────────────────────────────────────────────────────────
-
     @GetMapping("/songs")
     @Operation(summary = "Search songs")
     public ResponseEntity<ApiResponse<Object>> searchSongs(
@@ -41,8 +39,6 @@ public class SearchController {
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchSongs(q, page, limit)));
     }
-
-    // ── Albums ────────────────────────────────────────────────────────────────
 
     @GetMapping("/albums")
     @Operation(summary = "Search albums")
@@ -53,8 +49,6 @@ public class SearchController {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchAlbums(q, page, limit)));
     }
 
-    // ── Artists ───────────────────────────────────────────────────────────────
-
     @GetMapping("/artists")
     @Operation(summary = "Search artists")
     public ResponseEntity<ApiResponse<Object>> searchArtists(
@@ -63,8 +57,6 @@ public class SearchController {
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchArtists(q, page, limit)));
     }
-
-    // ── Playlists ─────────────────────────────────────────────────────────────
 
     @GetMapping("/playlists")
     @Operation(summary = "Search playlists")

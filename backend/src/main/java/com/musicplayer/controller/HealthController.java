@@ -3,7 +3,6 @@ package com.musicplayer.controller;
 import com.musicplayer.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/health")
-@RequiredArgsConstructor
 @Tag(name = "Health", description = "Service health checks")
 public class HealthController {
 
@@ -21,6 +19,10 @@ public class HealthController {
 
     @Value("${saavn.base-url:https://saavn.dev/api}")
     private String saavnBaseUrl;
+
+    public HealthController(WebClient jiosaavnClient) {
+        this.jiosaavnClient = jiosaavnClient;
+    }
 
     @GetMapping
     @Operation(summary = "Backend health status")
@@ -41,10 +43,8 @@ public class HealthController {
                     .retrieve()
                     .bodyToMono(Object.class)
                     .block();
-
             return ResponseEntity.ok(ApiResponse.success(
                     Map.of("status", "UP", "upstream", saavnBaseUrl)));
-
         } catch (Exception ex) {
             return ResponseEntity.status(502).body(ApiResponse.error(
                     "saavn API unreachable: " + ex.getMessage()));

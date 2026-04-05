@@ -6,23 +6,24 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/songs")
-@RequiredArgsConstructor
 @Validated
 @Tag(name = "Songs", description = "Get songs and suggestions")
 public class SongController {
 
     private final JioSaavnService jiosaavnService;
 
+    public SongController(JioSaavnService jiosaavnService) {
+        this.jiosaavnService = jiosaavnService;
+    }
+
     @GetMapping("/{id}")
-    @Operation(summary = "Get song details by ID",
-               description = "Returns full song details including download URLs, lyrics link, artwork")
+    @Operation(summary = "Get song details by ID")
     public ResponseEntity<ApiResponse<Object>> getSong(
             @PathVariable @Parameter(description = "JioSaavn song ID") String id) {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getSongById(id)));
