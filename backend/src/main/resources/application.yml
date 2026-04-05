@@ -1,0 +1,52 @@
+server:
+  port: ${PORT:8080}
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: music-player-backend
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=300s
+
+# saavn.dev — JioSaavn unofficial API (called directly, no proxy)
+saavn:
+  base-url: ${SAAVN_BASE_URL:https://saavn.dev/api}
+
+# Springdoc Swagger
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.musicplayer: DEBUG
+    org.springframework.web.reactive: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  cache:
+    caffeine:
+      spec: maximumSize=5000,expireAfterWrite=600s
+
+logging:
+  level:
+    com.musicplayer: INFO

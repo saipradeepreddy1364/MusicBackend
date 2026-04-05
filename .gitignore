@@ -1,0 +1,28 @@
+# Java / Maven
+target/
+*.class
+*.jar
+!**/src/main/**/*.jar
+
+# Node
+node_modules/
+npm-debug.log*
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Spring Boot
+backend/src/main/resources/application-local.yml
+
+# Android
+*.apk
+*.aab
+local.properties
+.gradle/
+build/
+
+# Docker
+.env

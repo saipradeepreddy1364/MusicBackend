@@ -1,0 +1,14 @@
+services:
+  # Single deployment — Spring Boot calls saavn.dev directly
+  - type: web
+    name: music-player-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Optional: override saavn.dev URL if needed
+      # - key: SAAVN_BASE_URL
+      #   value: https://saavn.dev/api
+    healthCheckPath: /api/health

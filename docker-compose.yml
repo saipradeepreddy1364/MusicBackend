@@ -1,0 +1,35 @@
+version: '3.9'
+
+services:
+  jiosaavn-api:
+    build:
+      context: ./jiosaavn-api
+      dockerfile: Dockerfile
+    container_name: jiosaavn-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - music-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: music-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - JIOSAAVN_BASE_URL=http://jiosaavn-api:3000
+      - SPRING_PROFILES_ACTIVE=prod
+    depends_on:
+      - jiosaavn-api
+    restart: unless-stopped
+    networks:
+      - music-net
+
+networks:
+  music-net:
+    driver: bridge
