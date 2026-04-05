@@ -19,7 +19,8 @@ public class HealthController {
 
     private final WebClient jiosaavnClient;
 
-    @Value("${saavn.base-url:https://saavn.dev/api}")
+    // ✅ FIXED (separate declaration properly)
+    @Value("${saavn.base-url:https://saavn.me}")
     private String saavnBaseUrl;
 
     @GetMapping
@@ -30,7 +31,7 @@ public class HealthController {
     }
 
     @GetMapping("/saavn")
-    @Operation(summary = "Check connectivity to saavn.dev")
+    @Operation(summary = "Check connectivity to saavn API")
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkSaavn() {
         try {
             jiosaavnClient.get()
@@ -41,11 +42,13 @@ public class HealthController {
                     .retrieve()
                     .bodyToMono(Object.class)
                     .block();
+
             return ResponseEntity.ok(ApiResponse.success(
                     Map.of("status", "UP", "upstream", saavnBaseUrl)));
+
         } catch (Exception ex) {
             return ResponseEntity.status(502).body(ApiResponse.error(
-                    "saavn.dev unreachable: " + ex.getMessage()));
+                    "saavn API unreachable: " + ex.getMessage()));
         }
     }
 }
