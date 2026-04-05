@@ -18,7 +18,7 @@ public class JioSaavnService {
 
     public JioSaavnService() {
         this.webClient = WebClient.builder()
-                .baseUrl("https://saavn.dev/api")
+                .baseUrl("https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api")
                 .build();
     }
 
