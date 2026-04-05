@@ -269,7 +269,15 @@ public class JioSaavnService {
     public Map<String, Object> getCharts() {
         try {
             log.info("Fetching charts");
-            return getUri("/modules?language=english");
+            return webClient.get()
+                    .uri(u -> u.path("/search/songs")
+                            .queryParam("query", "top hindi hits 2025")
+                            .queryParam("page", 1)
+                            .queryParam("limit", 20)
+                            .build())
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .block();
         } catch (WebClientResponseException e) {
             log.error("API error on getCharts: {}", e.getResponseBodyAsString());
             throw new RuntimeException("Failed to fetch charts");
