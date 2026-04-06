@@ -1,12 +1,16 @@
 package com.musicplayer.service;
 
+import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.util.Map;
 
 @Service
@@ -17,8 +21,13 @@ public class JioSaavnService {
     private final WebClient webClient;
 
     public JioSaavnService() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+                .responseTimeout(Duration.ofSeconds(25));
+
         this.webClient = WebClient.builder()
                 .baseUrl("https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api")
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
     }
 
@@ -250,9 +259,7 @@ public class JioSaavnService {
                         var b = u.path("/playlists");
                         if (id != null)   b = b.queryParam("id", id);
                         if (link != null) b = b.queryParam("link", link);
-                        return b.queryParam("page", page)
-                                .queryParam("limit", limit)
-                                .build();
+                        return b.build(); // no page/limit — upstream doesn't support them reliably
                     })
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
