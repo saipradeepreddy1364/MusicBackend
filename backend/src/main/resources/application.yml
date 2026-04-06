@@ -1,7 +1,7 @@
 spring:
   application:
     name: music-player-backend
-  
+
   # Supabase PostgreSQL with Connection Pooler
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require}
@@ -16,7 +16,7 @@ spring:
       max-lifetime: 1800000
       connection-test-query: SELECT 1
       validation-timeout: 5000
-      
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -29,14 +29,15 @@ spring:
           batch_size: 20
         order_inserts: true
         order_updates: true
-        
+
   cache:
     type: caffeine
     caffeine:
       spec: maximumSize=500,expireAfterWrite=10m
 
+# ✅ Fixed: now reads SAAVN_BASE_URL env var (matches your Render env var name)
 jiosaavn:
-  base-url: ${JIOSAAVN_BASE_URL:https://saavn.dev/api}
+  base-url: ${SAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}
 
 server:
   port: ${PORT:8080}

@@ -3,8 +3,10 @@ package com.musicplayer.service;
 import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -23,20 +25,19 @@ public class JioSaavnService {
 
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
-    private static final String BASE_URL =
-            "https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api";
-
     private final WebClient webClient;
 
-    @SuppressWarnings("null")
-    public JioSaavnService() {
+    public JioSaavnService(@Value("${jiosaavn.base-url}") @NonNull String baseUrl) {
+        log.info("JioSaavnService initialized with baseUrl={}", baseUrl);
+
+        // ✅ removed @NonNull from local variable (not allowed there)
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
                 .responseTimeout(Duration.ofSeconds(25));
 
         this.webClient = WebClient.builder()
-                .baseUrl(BASE_URL)
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .baseUrl(baseUrl)
+                .clientConnector(new ReactorClientHttpConnector(java.util.Objects.requireNonNull(httpClient)))
                 .defaultHeader("Accept", "application/json")
                 .defaultHeader("User-Agent",
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -174,8 +175,7 @@ public class JioSaavnService {
 
     // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
-    @SuppressWarnings("null")
-    private Map<String, Object> getMap(Function<UriBuilder, URI> uriFunction) {
+    private Map<String, Object> getMap(@NonNull Function<UriBuilder, URI> uriFunction) {
         try {
             Map<String, Object> response = webClient.get()
                     .uri(uriFunction)
