@@ -1,12 +1,11 @@
 package com.musicplayer.controller;
 
 import com.musicplayer.dto.ApiResponse;
+import com.musicplayer.service.JioSaavnService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
 
@@ -15,13 +14,10 @@ import java.util.Map;
 @Tag(name = "Health", description = "Service health checks")
 public class HealthController {
 
-    private final WebClient jiosaavnClient;
+    private final JioSaavnService jiosaavnService;
 
-    @Value("${saavn.base-url:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}")
-    private String saavnBaseUrl;
-
-    public HealthController(WebClient jiosaavnClient) {
-        this.jiosaavnClient = jiosaavnClient;
+    public HealthController(JioSaavnService jiosaavnService) {
+        this.jiosaavnService = jiosaavnService;
     }
 
     @GetMapping
@@ -32,22 +28,20 @@ public class HealthController {
     }
 
     @GetMapping("/saavn")
-    @Operation(summary = "Check connectivity to saavn API")
+    @Operation(summary = "Check connectivity to JioSaavn upstream API")
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkSaavn() {
         try {
-            jiosaavnClient.get()
-                    .uri(u -> u.path("/search/songs")
-                            .queryParam("query", "test")
-                            .queryParam("limit", 1)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(Object.class)
-                    .block();
+            Map<String, Object> result = jiosaavnService.searchSongs("test", 1, 1);
+            if (result == null || result.isEmpty()) {
+                return ResponseEntity.status(502).body(ApiResponse.error(
+                        "JioSaavn API returned empty response"));
+            }
             return ResponseEntity.ok(ApiResponse.success(
-                    Map.of("status", "UP", "upstream", saavnBaseUrl)));
+                    Map.of("status", "UP",
+                           "upstream", "https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api")));
         } catch (Exception ex) {
             return ResponseEntity.status(502).body(ApiResponse.error(
-                    "saavn API unreachable: " + ex.getMessage()));
+                    "JioSaavn API unreachable: " + ex.getMessage()));
         }
     }
 }
