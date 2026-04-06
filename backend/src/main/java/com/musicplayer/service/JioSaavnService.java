@@ -1,296 +1,252 @@
 package com.musicplayer.service;
 
-import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 
 import java.time.Duration;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class JioSaavnService {
 
-    private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
+    private static final Logger logger = LoggerFactory.getLogger(JioSaavnService.class);
 
     private final WebClient webClient;
 
+    // Primary Workers API base URL
+    private static final String BASE_URL = "https://jiosaavn-api.pradeepreddypalagiri.workers.dev";
+
     public JioSaavnService() {
         HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
-                .responseTimeout(Duration.ofSeconds(25));
+                .responseTimeout(Duration.ofSeconds(25))
+                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
 
         this.webClient = WebClient.builder()
-                .baseUrl("https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api")
+                .baseUrl(BASE_URL)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .defaultHeader("Accept", "application/json")
+                .defaultHeader("User-Agent", "Mozilla/5.0")
                 .build();
     }
 
-    private Map<String, Object> getUri(String uri) {
-        return webClient.get()
-                .uri(uri)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .block();
-    }
-
-    public Map<String, Object> search(String query, int page, int limit) {
+    // ─────────────────────────────────────────────
+    // Search Songs
+    // ─────────────────────────────────────────────
+    public List<Map<String, Object>> searchSongs(String query, int page, int limit) {
         try {
-            log.info("Global search: query={} page={} limit={}", query, page, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/search")
+            logger.info("Searching songs: query={}, page={}, limit={}", query, page, limit);
+
+            Map<String, Object> response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/search/songs")
                             .queryParam("query", query)
                             .queryParam("page", page)
                             .queryParam("limit", limit)
                             .build())
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(25))
+                    .onErrorReturn(new HashMap<>())
                     .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on search: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to search");
+
+            return extractSongs(response);
+
         } catch (Exception e) {
-            log.error("Unexpected error on search", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error searching songs: {}", e.getMessage());
+            return new ArrayList<>();
         }
     }
 
-    public Map<String, Object> searchSongs(String query, int page, int limit) {
+    // ─────────────────────────────────────────────
+    // Get Playlist by ID
+    // ─────────────────────────────────────────────
+    public Map<String, Object> getPlaylist(String playlistId) {
         try {
-            log.info("Search songs: query={} page={} limit={}", query, page, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/search/songs")
-                            .queryParam("query", query)
-                            .queryParam("page", page)
-                            .queryParam("limit", limit)
+            logger.info("Fetching playlist: id={}", playlistId);
+
+            Map<String, Object> response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/playlists")
+                            .queryParam("id", playlistId)
                             .build())
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on searchSongs: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to search songs");
-        } catch (Exception e) {
-            log.error("Unexpected error on searchSongs", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> searchAlbums(String query, int page, int limit) {
-        try {
-            log.info("Search albums: query={} page={} limit={}", query, page, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/search/albums")
-                            .queryParam("query", query)
-                            .queryParam("page", page)
-                            .queryParam("limit", limit)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on searchAlbums: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to search albums");
-        } catch (Exception e) {
-            log.error("Unexpected error on searchAlbums", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> searchArtists(String query, int page, int limit) {
-        try {
-            log.info("Search artists: query={} page={} limit={}", query, page, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/search/artists")
-                            .queryParam("query", query)
-                            .queryParam("page", page)
-                            .queryParam("limit", limit)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on searchArtists: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to search artists");
-        } catch (Exception e) {
-            log.error("Unexpected error on searchArtists", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> searchPlaylists(String query, int page, int limit) {
-        try {
-            log.info("Search playlists: query={} page={} limit={}", query, page, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/search/playlists")
-                            .queryParam("query", query)
-                            .queryParam("page", page)
-                            .queryParam("limit", limit)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on searchPlaylists: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to search playlists");
-        } catch (Exception e) {
-            log.error("Unexpected error on searchPlaylists", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> getSongById(String id) {
-        try {
-            log.info("Get song by id: {}", id);
-            return getUri("/songs/" + id);
-        } catch (WebClientResponseException e) {
-            log.error("API error on getSongById: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch song");
-        } catch (Exception e) {
-            log.error("Unexpected error on getSongById", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> getSongSuggestions(String id, int limit) {
-        try {
-            log.info("Get suggestions for song id: {} limit: {}", id, limit);
-            return webClient.get()
-                    .uri(u -> u.path("/songs/" + id + "/suggestions")
-                            .queryParam("limit", limit)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getSongSuggestions: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch song suggestions");
-        } catch (Exception e) {
-            log.error("Unexpected error on getSongSuggestions", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
-
-    public Map<String, Object> getAlbum(String id, String link) {
-        try {
-            log.info("Get album: id={} link={}", id, link);
-            return webClient.get()
-                    .uri(u -> {
-                        var b = u.path("/albums");
-                        if (id != null)   b = b.queryParam("id", id);
-                        if (link != null) b = b.queryParam("link", link);
-                        return b.build();
+                    .timeout(Duration.ofSeconds(25))
+                    .onErrorResume(e -> {
+                        logger.error("Playlist fetch error: {}", e.getMessage());
+                        return Mono.just(new HashMap<>());
                     })
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getAlbum: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch album");
+
+            if (response == null || response.isEmpty()) {
+                logger.warn("Empty response for playlist id={}", playlistId);
+                return new HashMap<>();
+            }
+
+            return response;
+
         } catch (Exception e) {
-            log.error("Unexpected error on getAlbum", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error fetching playlist {}: {}", playlistId, e.getMessage());
+            return new HashMap<>();
         }
     }
 
-    public Map<String, Object> getArtist(String id) {
+    // ─────────────────────────────────────────────
+    // Get Song by ID
+    // ─────────────────────────────────────────────
+    public Map<String, Object> getSongById(String songId) {
         try {
-            log.info("Get artist: id={}", id);
-            return getUri("/artists/" + id);
-        } catch (WebClientResponseException e) {
-            log.error("API error on getArtist: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch artist");
-        } catch (Exception e) {
-            log.error("Unexpected error on getArtist", e);
-            throw new RuntimeException("Unexpected error occurred");
-        }
-    }
+            logger.info("Fetching song: id={}", songId);
 
-    public Map<String, Object> getArtistSongs(String id, int page, String sortBy, String sortOrder) {
-        try {
-            log.info("Get artist songs: id={} page={} sortBy={} sortOrder={}", id, page, sortBy, sortOrder);
-            return webClient.get()
-                    .uri(u -> u.path("/artists/" + id + "/songs")
-                            .queryParam("page", page)
-                            .queryParam("sortBy", sortBy)
-                            .queryParam("sortOrder", sortOrder)
+            Map<String, Object> response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/songs/" + songId)
                             .build())
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(25))
+                    .onErrorReturn(new HashMap<>())
                     .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getArtistSongs: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch artist songs");
+
+            return response != null ? response : new HashMap<>();
+
         } catch (Exception e) {
-            log.error("Unexpected error on getArtistSongs", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error fetching song {}: {}", songId, e.getMessage());
+            return new HashMap<>();
         }
     }
 
-    public Map<String, Object> getArtistAlbums(String id, int page) {
+    // ─────────────────────────────────────────────
+    // Get Trending / Home Feed Songs
+    // Fallback: search popular terms when no playlist works
+    // ─────────────────────────────────────────────
+    public List<Map<String, Object>> getTrendingSongs() {
+        logger.info("Fetching trending songs via search fallback");
+        List<Map<String, Object>> results = searchSongs("top hindi songs 2024", 1, 50);
+        if (results.isEmpty()) {
+            results = searchSongs("bollywood hits", 1, 50);
+        }
+        return results;
+    }
+
+    // ─────────────────────────────────────────────
+    // Get Songs from Album
+    // ─────────────────────────────────────────────
+    public Map<String, Object> getAlbum(String albumId) {
         try {
-            log.info("Get artist albums: id={} page={}", id, page);
-            return webClient.get()
-                    .uri(u -> u.path("/artists/" + id + "/albums")
-                            .queryParam("page", page)
+            logger.info("Fetching album: id={}", albumId);
+
+            Map<String, Object> response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/albums")
+                            .queryParam("id", albumId)
                             .build())
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(25))
+                    .onErrorReturn(new HashMap<>())
                     .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getArtistAlbums: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch artist albums");
+
+            return response != null ? response : new HashMap<>();
+
         } catch (Exception e) {
-            log.error("Unexpected error on getArtistAlbums", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error fetching album {}: {}", albumId, e.getMessage());
+            return new HashMap<>();
         }
     }
 
-    public Map<String, Object> getPlaylist(String id, String link, int page, int limit) {
+    // ─────────────────────────────────────────────
+    // Get Song Stream URL
+    // ─────────────────────────────────────────────
+    public String getSongStreamUrl(String songId) {
         try {
-            log.info("Get playlist: id={} link={} page={} limit={}", id, link, page, limit);
-            return webClient.get()
-                    .uri(u -> {
-                        var b = u.path("/playlists");
-                        if (id != null)   b = b.queryParam("id", id);
-                        if (link != null) b = b.queryParam("link", link);
-                        return b.build(); // no page/limit — upstream doesn't support them reliably
-                    })
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getPlaylist: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch playlist");
+            Map<String, Object> song = getSongById(songId);
+            return extractStreamUrl(song);
         } catch (Exception e) {
-            log.error("Unexpected error on getPlaylist", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error getting stream URL for {}: {}", songId, e.getMessage());
+            return null;
         }
     }
 
-    public Map<String, Object> getCharts() {
+    // ─────────────────────────────────────────────
+    // Helper: Extract songs list from API response
+    // Handles both { data: { results: [...] } } and { data: [...] }
+    // ─────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractSongs(Map<String, Object> response) {
+        if (response == null || response.isEmpty()) return new ArrayList<>();
+
         try {
-            log.info("Fetching charts");
-            return webClient.get()
-                    .uri(u -> u.path("/search/songs")
-                            .queryParam("query", "top hindi hits 2025")
-                            .queryParam("page", 1)
-                            .queryParam("limit", 20)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("API error on getCharts: {}", e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to fetch charts");
+            Object data = response.get("data");
+
+            if (data instanceof Map) {
+                Map<String, Object> dataMap = (Map<String, Object>) data;
+                Object results = dataMap.get("results");
+                if (results instanceof List) {
+                    return (List<Map<String, Object>>) results;
+                }
+                // Sometimes songs are directly in data
+                Object songs = dataMap.get("songs");
+                if (songs instanceof List) {
+                    return (List<Map<String, Object>>) songs;
+                }
+            }
+
+            if (data instanceof List) {
+                return (List<Map<String, Object>>) data;
+            }
+
+            // Top-level results key
+            Object results = response.get("results");
+            if (results instanceof List) {
+                return (List<Map<String, Object>>) results;
+            }
+
         } catch (Exception e) {
-            log.error("Unexpected error on getCharts", e);
-            throw new RuntimeException("Unexpected error occurred");
+            logger.error("Error extracting songs from response: {}", e.getMessage());
         }
+
+        return new ArrayList<>();
+    }
+
+    // ─────────────────────────────────────────────
+    // Helper: Extract best quality stream URL
+    // ─────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
+    private String extractStreamUrl(Map<String, Object> songData) {
+        if (songData == null) return null;
+
+        try {
+            // Try downloadUrl array (highest quality last)
+            Object dlUrls = songData.get("downloadUrl");
+            if (dlUrls instanceof List) {
+                List<Map<String, Object>> urls = (List<Map<String, Object>>) dlUrls;
+                if (!urls.isEmpty()) {
+                    // Return the highest quality (last item)
+                    Map<String, Object> best = urls.get(urls.size() - 1);
+                    return (String) best.get("url");
+                }
+            }
+
+            // Fallback: direct url field
+            Object url = songData.get("url");
+            if (url instanceof String) return (String) url;
+
+            // Fallback: media_url field
+            Object mediaUrl = songData.get("media_url");
+            if (mediaUrl instanceof String) return (String) mediaUrl;
+
+        } catch (Exception e) {
+            logger.error("Error extracting stream URL: {}", e.getMessage());
+        }
+
+        return null;
     }
 }
