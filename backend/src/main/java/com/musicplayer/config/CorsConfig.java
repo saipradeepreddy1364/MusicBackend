@@ -18,7 +18,7 @@ public class CorsConfig {
         config.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "http://localhost:3000",
-            "https://rhythm-weaver-two.vercel.app"  // ✅ your production frontend
+            "https://rhythm-weaver-two.vercel.app"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -27,7 +27,10 @@ public class CorsConfig {
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
+
+        // ✅ Changed from "/api/**" to "/**"
+        // because context-path is already "/api", so routes here are relative to it
+        source.registerCorsConfiguration("/**", config);
 
         return new CorsFilter(source);
     }
