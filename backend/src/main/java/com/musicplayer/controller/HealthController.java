@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/health")
 @Tag(name = "Health", description = "Service health checks")
 public class HealthController {
 
@@ -20,14 +19,22 @@ public class HealthController {
         this.jiosaavnService = jiosaavnService;
     }
 
-    @GetMapping
+    // ✅ Handles root URL hit by Render's health checker — silences "No static resource ." error
+    @GetMapping("/")
+    @Operation(summary = "Root ping")
+    public ResponseEntity<ApiResponse<Map<String, String>>> root() {
+        return ResponseEntity.ok(ApiResponse.success(
+                Map.of("status", "UP", "service", "music-player-backend")));
+    }
+
+    @GetMapping("/health")
     @Operation(summary = "Backend health status")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("status", "UP", "service", "music-player-backend")));
     }
 
-    @GetMapping("/saavn")
+    @GetMapping("/health/saavn")
     @Operation(summary = "Check connectivity to JioSaavn upstream API")
     public ResponseEntity<ApiResponse<Map<String, String>>> checkSaavn() {
         try {
