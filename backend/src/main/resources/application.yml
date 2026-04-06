@@ -1,52 +1,36 @@
-server:
-  port: ${PORT:8080}
-  servlet:
-    context-path: /api
-
 spring:
   application:
     name: music-player-backend
+  # Supabase PostgreSQL
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://db.zoxztfjptjkuapqldlha.supabase.co:5432/postgres}
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:Palagiri677245}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
   cache:
     type: caffeine
     caffeine:
-      spec: maximumSize=1000,expireAfterWrite=300s
-
-# JioSaavn unofficial API via Cloudflare Workers (saavn.dev is DNS-blocked in India)
-saavn:
-  base-url: ${SAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}
-
-# Springdoc Swagger
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    operations-sorter: alpha
-
-# Actuator
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
-  endpoint:
-    health:
-      show-details: always
-
-logging:
-  level:
-    com.musicplayer: DEBUG
-    org.springframework.web.reactive: DEBUG
-
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-  cache:
-    caffeine:
-      spec: maximumSize=5000,expireAfterWrite=600s
-
+      spec: maximumSize=500,expireAfterWrite=10m
+jiosaavn:
+  base-url: ${JIOSAAVN_BASE_URL:https://saavn.dev/api}
+server:
+  port: ${PORT:8080}
+  compression:
+    enabled: true
 logging:
   level:
     com.musicplayer: INFO
+    org.springframework.web: WARN
