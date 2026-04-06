@@ -27,7 +27,6 @@ public class PlaylistController {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("Provide either 'id' or 'link' query parameter"));
         }
-        // page/limit removed — the upstream Workers API does not support them on playlists
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getPlaylist(id, link)));
     }
 }

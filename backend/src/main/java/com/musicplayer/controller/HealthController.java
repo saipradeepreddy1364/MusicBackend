@@ -29,7 +29,7 @@ public class HealthController {
 
     @GetMapping("/saavn")
     @Operation(summary = "Check connectivity to JioSaavn upstream API")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> checkSaavn() {
+    public ResponseEntity<ApiResponse<Map<String, String>>> checkSaavn() {
         try {
             Map<String, Object> result = jiosaavnService.searchSongs("test", 1, 1);
             if (result == null || result.isEmpty()) {

@@ -1,252 +1,224 @@
 package com.musicplayer.service;
 
+import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
+import org.springframework.web.util.UriBuilder;
 import reactor.netty.http.client.HttpClient;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Function;
 
 @Service
 public class JioSaavnService {
 
-    private static final Logger logger = LoggerFactory.getLogger(JioSaavnService.class);
+    private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
+
+    private static final String BASE_URL =
+            "https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api";
 
     private final WebClient webClient;
 
-    // Primary Workers API base URL
-    private static final String BASE_URL = "https://jiosaavn-api.pradeepreddypalagiri.workers.dev";
-
     public JioSaavnService() {
         HttpClient httpClient = HttpClient.create()
-                .responseTimeout(Duration.ofSeconds(25))
-                .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
+                .responseTimeout(Duration.ofSeconds(25));
 
         this.webClient = WebClient.builder()
                 .baseUrl(BASE_URL)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .defaultHeader("Accept", "application/json")
-                .defaultHeader("User-Agent", "Mozilla/5.0")
+                .defaultHeader("User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                 .build();
     }
 
-    // ─────────────────────────────────────────────
-    // Search Songs
-    // ─────────────────────────────────────────────
-    public List<Map<String, Object>> searchSongs(String query, int page, int limit) {
-        try {
-            logger.info("Searching songs: query={}, page={}, limit={}", query, page, limit);
+    // ── SEARCH ────────────────────────────────────────────────────────────────
 
+    /** GET /search?query=&page=&limit= */
+    public Map<String, Object> search(String query, int page, int limit) {
+        log.info("search | query={} page={} limit={}", query, page, limit);
+        return getMap(u -> u.path("/search")
+                .queryParam("query", query)
+                .queryParam("page", page)
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    /** GET /search/songs?query=&page=&limit= */
+    public Map<String, Object> searchSongs(String query, int page, int limit) {
+        log.info("searchSongs | query={} page={} limit={}", query, page, limit);
+        return getMap(u -> u.path("/search/songs")
+                .queryParam("query", query)
+                .queryParam("page", page)
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    /** GET /search/albums?query=&page=&limit= */
+    public Map<String, Object> searchAlbums(String query, int page, int limit) {
+        log.info("searchAlbums | query={} page={} limit={}", query, page, limit);
+        return getMap(u -> u.path("/search/albums")
+                .queryParam("query", query)
+                .queryParam("page", page)
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    /** GET /search/artists?query=&page=&limit= */
+    public Map<String, Object> searchArtists(String query, int page, int limit) {
+        log.info("searchArtists | query={} page={} limit={}", query, page, limit);
+        return getMap(u -> u.path("/search/artists")
+                .queryParam("query", query)
+                .queryParam("page", page)
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    /** GET /search/playlists?query=&page=&limit= */
+    public Map<String, Object> searchPlaylists(String query, int page, int limit) {
+        log.info("searchPlaylists | query={} page={} limit={}", query, page, limit);
+        return getMap(u -> u.path("/search/playlists")
+                .queryParam("query", query)
+                .queryParam("page", page)
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    // ── SONGS ─────────────────────────────────────────────────────────────────
+
+    /** GET /songs/{id} */
+    public Map<String, Object> getSongById(String id) {
+        log.info("getSongById | id={}", id);
+        return getMap(u -> u.path("/songs/" + id).build());
+    }
+
+    /** GET /songs/{id}/suggestions?limit= */
+    public Map<String, Object> getSongSuggestions(String id, int limit) {
+        log.info("getSongSuggestions | id={} limit={}", id, limit);
+        return getMap(u -> u.path("/songs/" + id + "/suggestions")
+                .queryParam("limit", limit)
+                .build());
+    }
+
+    /** GET /songs/{id}/lyrics */
+    public Map<String, Object> getSongLyrics(String id) {
+        log.info("getSongLyrics | id={}", id);
+        return getMap(u -> u.path("/songs/" + id + "/lyrics").build());
+    }
+
+    // ── ALBUMS ────────────────────────────────────────────────────────────────
+
+    /**
+     * GET /albums?id= OR /albums?link=
+     * Called by AlbumController as getAlbum(id, link) — both params accepted.
+     */
+    public Map<String, Object> getAlbum(String id, String link) {
+        log.info("getAlbum | id={} link={}", id, link);
+        return getMap(u -> {
+            var b = u.path("/albums");
+            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (link != null && !link.isBlank()) b = b.queryParam("link", link);
+            return b.build();
+        });
+    }
+
+    // ── PLAYLISTS ─────────────────────────────────────────────────────────────
+
+    /**
+     * GET /playlists?id= OR /playlists?link=
+     * Called by PlaylistController as getPlaylist(id, link).
+     * page/limit intentionally omitted — upstream ignores them and they cause 502s.
+     */
+    public Map<String, Object> getPlaylist(String id, String link) {
+        log.info("getPlaylist | id={} link={}", id, link);
+        return getMap(u -> {
+            var b = u.path("/playlists");
+            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (link != null && !link.isBlank()) b = b.queryParam("link", link);
+            return b.build();
+        });
+    }
+
+    // ── ARTISTS ───────────────────────────────────────────────────────────────
+
+    /** GET /artists/{id} */
+    public Map<String, Object> getArtist(String id) {
+        log.info("getArtist | id={}", id);
+        return getMap(u -> u.path("/artists/" + id).build());
+    }
+
+    /** GET /artists/{id}/songs?page=&sortBy=&sortOrder= */
+    public Map<String, Object> getArtistSongs(String id, int page,
+                                               String sortBy, String sortOrder) {
+        log.info("getArtistSongs | id={} page={} sortBy={} sortOrder={}",
+                id, page, sortBy, sortOrder);
+        String sb = (sortBy    != null && !sortBy.isBlank())    ? sortBy    : "latest";
+        String so = (sortOrder != null && !sortOrder.isBlank()) ? sortOrder : "desc";
+        return getMap(u -> u.path("/artists/" + id + "/songs")
+                .queryParam("page",      page)
+                .queryParam("sortBy",    sb)
+                .queryParam("sortOrder", so)
+                .build());
+    }
+
+    /** GET /artists/{id}/albums?page= */
+    public Map<String, Object> getArtistAlbums(String id, int page) {
+        log.info("getArtistAlbums | id={} page={}", id, page);
+        return getMap(u -> u.path("/artists/" + id + "/albums")
+                .queryParam("page", page)
+                .build());
+    }
+
+    // ── CHARTS / HOME ─────────────────────────────────────────────────────────
+
+    /** Returns trending songs via search fallback. Used by ChartsController. */
+    public Map<String, Object> getCharts() {
+        log.info("getCharts | search fallback");
+        Map<String, Object> result = searchSongs("top hindi hits 2025", 1, 50);
+        if (isDataEmpty(result)) {
+            log.warn("getCharts | primary empty, trying fallback");
+            result = searchSongs("bollywood hits", 1, 50);
+        }
+        return result;
+    }
+
+    // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
+
+    private Map<String, Object> getMap(Function<UriBuilder, URI> uriFunction) {
+        try {
             Map<String, Object> response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/search/songs")
-                            .queryParam("query", query)
-                            .queryParam("page", page)
-                            .queryParam("limit", limit)
-                            .build())
+                    .uri(uriFunction)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
-                    .onErrorReturn(new HashMap<>())
                     .block();
 
-            return extractSongs(response);
+            return response != null ? response : Collections.emptyMap();
 
+        } catch (WebClientResponseException e) {
+            log.error("getMap | HTTP {} – {}", e.getStatusCode(), e.getResponseBodyAsString());
+            return Collections.emptyMap();
         } catch (Exception e) {
-            logger.error("Error searching songs: {}", e.getMessage());
-            return new ArrayList<>();
+            log.error("getMap | error: {}", e.getMessage());
+            return Collections.emptyMap();
         }
     }
 
-    // ─────────────────────────────────────────────
-    // Get Playlist by ID
-    // ─────────────────────────────────────────────
-    public Map<String, Object> getPlaylist(String playlistId) {
-        try {
-            logger.info("Fetching playlist: id={}", playlistId);
-
-            Map<String, Object> response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/playlists")
-                            .queryParam("id", playlistId)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(25))
-                    .onErrorResume(e -> {
-                        logger.error("Playlist fetch error: {}", e.getMessage());
-                        return Mono.just(new HashMap<>());
-                    })
-                    .block();
-
-            if (response == null || response.isEmpty()) {
-                logger.warn("Empty response for playlist id={}", playlistId);
-                return new HashMap<>();
-            }
-
-            return response;
-
-        } catch (Exception e) {
-            logger.error("Error fetching playlist {}: {}", playlistId, e.getMessage());
-            return new HashMap<>();
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // Get Song by ID
-    // ─────────────────────────────────────────────
-    public Map<String, Object> getSongById(String songId) {
-        try {
-            logger.info("Fetching song: id={}", songId);
-
-            Map<String, Object> response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/songs/" + songId)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(25))
-                    .onErrorReturn(new HashMap<>())
-                    .block();
-
-            return response != null ? response : new HashMap<>();
-
-        } catch (Exception e) {
-            logger.error("Error fetching song {}: {}", songId, e.getMessage());
-            return new HashMap<>();
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // Get Trending / Home Feed Songs
-    // Fallback: search popular terms when no playlist works
-    // ─────────────────────────────────────────────
-    public List<Map<String, Object>> getTrendingSongs() {
-        logger.info("Fetching trending songs via search fallback");
-        List<Map<String, Object>> results = searchSongs("top hindi songs 2024", 1, 50);
-        if (results.isEmpty()) {
-            results = searchSongs("bollywood hits", 1, 50);
-        }
-        return results;
-    }
-
-    // ─────────────────────────────────────────────
-    // Get Songs from Album
-    // ─────────────────────────────────────────────
-    public Map<String, Object> getAlbum(String albumId) {
-        try {
-            logger.info("Fetching album: id={}", albumId);
-
-            Map<String, Object> response = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/albums")
-                            .queryParam("id", albumId)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(25))
-                    .onErrorReturn(new HashMap<>())
-                    .block();
-
-            return response != null ? response : new HashMap<>();
-
-        } catch (Exception e) {
-            logger.error("Error fetching album {}: {}", albumId, e.getMessage());
-            return new HashMap<>();
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // Get Song Stream URL
-    // ─────────────────────────────────────────────
-    public String getSongStreamUrl(String songId) {
-        try {
-            Map<String, Object> song = getSongById(songId);
-            return extractStreamUrl(song);
-        } catch (Exception e) {
-            logger.error("Error getting stream URL for {}: {}", songId, e.getMessage());
-            return null;
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // Helper: Extract songs list from API response
-    // Handles both { data: { results: [...] } } and { data: [...] }
-    // ─────────────────────────────────────────────
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> extractSongs(Map<String, Object> response) {
-        if (response == null || response.isEmpty()) return new ArrayList<>();
-
-        try {
-            Object data = response.get("data");
-
-            if (data instanceof Map) {
-                Map<String, Object> dataMap = (Map<String, Object>) data;
-                Object results = dataMap.get("results");
-                if (results instanceof List) {
-                    return (List<Map<String, Object>>) results;
-                }
-                // Sometimes songs are directly in data
-                Object songs = dataMap.get("songs");
-                if (songs instanceof List) {
-                    return (List<Map<String, Object>>) songs;
-                }
-            }
-
-            if (data instanceof List) {
-                return (List<Map<String, Object>>) data;
-            }
-
-            // Top-level results key
-            Object results = response.get("results");
-            if (results instanceof List) {
-                return (List<Map<String, Object>>) results;
-            }
-
-        } catch (Exception e) {
-            logger.error("Error extracting songs from response: {}", e.getMessage());
-        }
-
-        return new ArrayList<>();
-    }
-
-    // ─────────────────────────────────────────────
-    // Helper: Extract best quality stream URL
-    // ─────────────────────────────────────────────
-    @SuppressWarnings("unchecked")
-    private String extractStreamUrl(Map<String, Object> songData) {
-        if (songData == null) return null;
-
-        try {
-            // Try downloadUrl array (highest quality last)
-            Object dlUrls = songData.get("downloadUrl");
-            if (dlUrls instanceof List) {
-                List<Map<String, Object>> urls = (List<Map<String, Object>>) dlUrls;
-                if (!urls.isEmpty()) {
-                    // Return the highest quality (last item)
-                    Map<String, Object> best = urls.get(urls.size() - 1);
-                    return (String) best.get("url");
-                }
-            }
-
-            // Fallback: direct url field
-            Object url = songData.get("url");
-            if (url instanceof String) return (String) url;
-
-            // Fallback: media_url field
-            Object mediaUrl = songData.get("media_url");
-            if (mediaUrl instanceof String) return (String) mediaUrl;
-
-        } catch (Exception e) {
-            logger.error("Error extracting stream URL: {}", e.getMessage());
-        }
-
-        return null;
+    private boolean isDataEmpty(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) return true;
+        Object data = map.get("data");
+        if (data == null) return true;
+        if (data instanceof Map<?, ?> m && m.isEmpty()) return true;
+        if (data instanceof List<?> l && l.isEmpty()) return true;
+        return false;
     }
 }
