@@ -1,17 +1,22 @@
 spring:
   application:
     name: music-player-backend
-  # Supabase PostgreSQL
+  
+  # Supabase PostgreSQL with Connection Pooler
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://db.zoxztfjptjkuapqldlha.supabase.co:5432/postgres}
-    username: ${DATABASE_USER:postgres}
+    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require}
+    username: ${DATABASE_USER:postgres.zoxztfjptjkuapqldlha}
     password: ${DATABASE_PASSWORD:Palagiri677245}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
+      maximum-pool-size: 10
+      minimum-idle: 2
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      
   jpa:
     hibernate:
       ddl-auto: validate
@@ -20,17 +25,30 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        
   cache:
     type: caffeine
     caffeine:
       spec: maximumSize=500,expireAfterWrite=10m
+
 jiosaavn:
   base-url: ${JIOSAAVN_BASE_URL:https://saavn.dev/api}
+
 server:
   port: ${PORT:8080}
   compression:
     enabled: true
+  tomcat:
+    threads:
+      max: 10
+    connection-timeout: 20000
+
 logging:
   level:
     com.musicplayer: INFO
+    com.zaxxer.hikari: WARN
     org.springframework.web: WARN
