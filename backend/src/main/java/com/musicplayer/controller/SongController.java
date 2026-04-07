@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/songs")
 @Validated
@@ -35,5 +37,19 @@ public class SongController {
             @PathVariable String id,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getSongSuggestions(id, limit)));
+    }
+
+    @GetMapping("/{id}/lyrics")
+    @Operation(summary = "Get lyrics for a song by ID")
+    public ResponseEntity<?> getSongLyrics(
+            @PathVariable @Parameter(description = "JioSaavn song ID") String id) {
+        Map<String, Object> result = jiosaavnService.getSongLyrics(id);
+        if (result == null || result.isEmpty()) {
+            // Return 404 so the frontend knows lyrics are unavailable — never 500
+            return ResponseEntity.status(404).body(
+                    Map.of("success", false, "message", "Lyrics not available for this song")
+            );
+        }
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }
