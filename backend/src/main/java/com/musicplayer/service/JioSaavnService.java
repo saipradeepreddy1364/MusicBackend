@@ -108,14 +108,43 @@ public class JioSaavnService {
     }
 
     /**
-     * Returns lyrics for the given song ID.
-     * If the upstream API returns 404 or any error (many songs have no lyrics),
-     * this returns an empty map — never throws — so the controller can return 404
-     * instead of propagating a 500.
+     * Fetches lyrics for the given song ID.
+     *
+     * Strategy:
+     *   1. Try the dedicated /songs/{id}/lyrics endpoint on saavn.dev
+     *   2. If that returns nothing (song has no standalone lyrics resource),
+     *      fall back to fetching the full song object and pulling the
+     *      "lyrics" / "lyrics_snippet" field that saavn.dev sometimes embeds there.
+     *
+     * Never throws — always returns a map or empty map so the controller
+     * can return 404 cleanly instead of propagating a 500.
      */
     public Map<String, Object> getSongLyrics(String id) {
         log.info("getSongLyrics | id={}", id);
-        return getMapAllowNotFound(u -> u.path("/songs/" + id + "/lyrics").build());
+
+        // ── Attempt 1: dedicated lyrics endpoint ─────────────────────────────
+        Map<String, Object> lyricsResult = getMapAllowNotFound(
+                u -> u.path("/songs/" + id + "/lyrics").build());
+
+        if (!isDataEmpty(lyricsResult)) {
+            log.info("getSongLyrics | found via lyrics endpoint | id={}", id);
+            return lyricsResult;
+        }
+
+        // ── Attempt 2: extract from song details ─────────────────────────────
+        // saavn.dev embeds lyrics inside the song object for some tracks.
+        log.info("getSongLyrics | lyrics endpoint empty, trying song details | id={}", id);
+        Map<String, Object> songResult = getMapAllowNotFound(
+                u -> u.path("/songs/" + id).build());
+
+        String lyrics = extractLyricsFromSongObject(songResult);
+        if (lyrics != null && !lyrics.isBlank()) {
+            log.info("getSongLyrics | found via song details | id={}", id);
+            return Map.of("lyrics", lyrics);
+        }
+
+        log.warn("getSongLyrics | no lyrics found for id={}", id);
+        return Collections.emptyMap();
     }
 
     // ── ALBUMS ────────────────────────────────────────────────────────────────
@@ -183,6 +212,9 @@ public class JioSaavnService {
 
     // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
+    /**
+     * Standard GET — treats any non-2xx as an error and returns empty map.
+     */
     private Map<String, Object> getMap(
             @NonNull Function<UriBuilder, URI> uriFunction) {
         try {
@@ -192,12 +224,9 @@ public class JioSaavnService {
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
                     .block();
-
             return response != null ? response : Collections.emptyMap();
-
         } catch (WebClientResponseException e) {
-            log.error("getMap | HTTP {} - {}",
-                    e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("getMap | HTTP {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return Collections.emptyMap();
         } catch (Exception e) {
             log.error("getMap | error: {}", e.getMessage());
@@ -206,8 +235,8 @@ public class JioSaavnService {
     }
 
     /**
-     * Like getMap but treats 404 as a normal "not found" (returns empty map, logs at WARN).
-     * Use this for endpoints where absence of data is expected (e.g. lyrics not available).
+     * Like getMap but treats 404 as a normal "not found" (logs WARN, not ERROR).
+     * Use for endpoints where absence of data is expected (e.g. lyrics not available).
      */
     private Map<String, Object> getMapAllowNotFound(
             @NonNull Function<UriBuilder, URI> uriFunction) {
@@ -218,21 +247,58 @@ public class JioSaavnService {
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
                     .block();
-
             return response != null ? response : Collections.emptyMap();
-
         } catch (WebClientResponseException.NotFound e) {
-            // 404 = lyrics simply don't exist for this song — not an error
-            log.warn("getMapAllowNotFound | 404 Not Found for URI");
+            log.warn("getMapAllowNotFound | 404 Not Found (expected for missing lyrics)");
             return Collections.emptyMap();
         } catch (WebClientResponseException e) {
-            log.error("getMapAllowNotFound | HTTP {} - {}",
-                    e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("getMapAllowNotFound | HTTP {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return Collections.emptyMap();
         } catch (Exception e) {
             log.error("getMapAllowNotFound | error: {}", e.getMessage());
             return Collections.emptyMap();
         }
+    }
+
+    /**
+     * Tries to pull a lyrics string out of a saavn.dev song-details response.
+     * saavn.dev wraps data in: { success, data: [ { lyrics, lyrics_snippet, ... } ] }
+     * or sometimes:            { success, data: { lyrics, ... } }
+     */
+    private String extractLyricsFromSongObject(Map<String, Object> songMap) {
+        if (songMap == null || songMap.isEmpty()) return null;
+
+        Object dataObj = songMap.get("data");
+
+        // data is a List — take first element
+        if (dataObj instanceof List<?> list && !list.isEmpty()) {
+            Object first = list.get(0);
+            if (first instanceof Map<?, ?> songData) {
+                return getLyricsFromMap(songData);
+            }
+        }
+
+        // data is a Map directly
+        if (dataObj instanceof Map<?, ?> songData) {
+            return getLyricsFromMap(songData);
+        }
+
+        // top-level (no wrapper)
+        return getLyricsFromMap(songMap);
+    }
+
+    private String getLyricsFromMap(Map<?, ?> map) {
+        if (map == null) return null;
+
+        // Full lyrics field
+        Object lyrics = map.get("lyrics");
+        if (lyrics instanceof String s && !s.isBlank()) return s;
+
+        // Snippet as last resort
+        Object snippet = map.get("lyrics_snippet");
+        if (snippet instanceof String s && !s.isBlank()) return s;
+
+        return null;
     }
 
     private boolean isDataEmpty(Map<String, Object> map) {
