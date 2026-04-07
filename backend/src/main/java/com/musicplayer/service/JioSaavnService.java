@@ -107,9 +107,15 @@ public class JioSaavnService {
                 .build());
     }
 
+    /**
+     * Returns lyrics for the given song ID.
+     * If the upstream API returns 404 or any error (many songs have no lyrics),
+     * this returns an empty map — never throws — so the controller can return 404
+     * instead of propagating a 500.
+     */
     public Map<String, Object> getSongLyrics(String id) {
         log.info("getSongLyrics | id={}", id);
-        return getMap(u -> u.path("/songs/" + id + "/lyrics").build());
+        return getMapAllowNotFound(u -> u.path("/songs/" + id + "/lyrics").build());
     }
 
     // ── ALBUMS ────────────────────────────────────────────────────────────────
@@ -195,6 +201,36 @@ public class JioSaavnService {
             return Collections.emptyMap();
         } catch (Exception e) {
             log.error("getMap | error: {}", e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * Like getMap but treats 404 as a normal "not found" (returns empty map, logs at WARN).
+     * Use this for endpoints where absence of data is expected (e.g. lyrics not available).
+     */
+    private Map<String, Object> getMapAllowNotFound(
+            @NonNull Function<UriBuilder, URI> uriFunction) {
+        try {
+            Map<String, Object> response = webClient.get()
+                    .uri(uriFunction)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(25))
+                    .block();
+
+            return response != null ? response : Collections.emptyMap();
+
+        } catch (WebClientResponseException.NotFound e) {
+            // 404 = lyrics simply don't exist for this song — not an error
+            log.warn("getMapAllowNotFound | 404 Not Found for URI");
+            return Collections.emptyMap();
+        } catch (WebClientResponseException e) {
+            log.error("getMapAllowNotFound | HTTP {} - {}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            return Collections.emptyMap();
+        } catch (Exception e) {
+            log.error("getMapAllowNotFound | error: {}", e.getMessage());
             return Collections.emptyMap();
         }
     }
