@@ -30,17 +30,19 @@ public class JioSaavnService {
     public JioSaavnService(@Value("${jiosaavn.base-url}") @NonNull String baseUrl) {
         log.info("JioSaavnService initialized with baseUrl={}", baseUrl);
 
-        // ✅ removed @NonNull from local variable (not allowed there)
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
                 .responseTimeout(Duration.ofSeconds(25));
 
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
-                .clientConnector(new ReactorClientHttpConnector(java.util.Objects.requireNonNull(httpClient)))
+                .clientConnector(new ReactorClientHttpConnector(
+                        java.util.Objects.requireNonNull(httpClient)))
                 .defaultHeader("Accept", "application/json")
                 .defaultHeader("User-Agent",
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                        "Chrome/120.0.0.0 Safari/537.36")
                 .build();
     }
 
@@ -116,7 +118,7 @@ public class JioSaavnService {
         log.info("getAlbum | id={} link={}", id, link);
         return getMap(u -> {
             var b = u.path("/albums");
-            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (id != null && !id.isBlank())     b = b.queryParam("id", id);
             if (link != null && !link.isBlank()) b = b.queryParam("link", link);
             return b.build();
         });
@@ -128,7 +130,7 @@ public class JioSaavnService {
         log.info("getPlaylist | id={} link={}", id, link);
         return getMap(u -> {
             var b = u.path("/playlists");
-            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (id != null && !id.isBlank())     b = b.queryParam("id", id);
             if (link != null && !link.isBlank()) b = b.queryParam("link", link);
             return b.build();
         });
@@ -175,7 +177,8 @@ public class JioSaavnService {
 
     // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
-    private Map<String, Object> getMap(@NonNull Function<UriBuilder, URI> uriFunction) {
+    private Map<String, Object> getMap(
+            @NonNull Function<UriBuilder, URI> uriFunction) {
         try {
             Map<String, Object> response = webClient.get()
                     .uri(uriFunction)
@@ -187,7 +190,8 @@ public class JioSaavnService {
             return response != null ? response : Collections.emptyMap();
 
         } catch (WebClientResponseException e) {
-            log.error("getMap | HTTP {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("getMap | HTTP {} - {}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
             return Collections.emptyMap();
         } catch (Exception e) {
             log.error("getMap | error: {}", e.getMessage());

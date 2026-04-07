@@ -28,7 +28,8 @@ public class SearchController {
             @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.search(query, page, limit)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.search(query, page, limit)));
     }
 
     @GetMapping("/songs")
@@ -37,7 +38,8 @@ public class SearchController {
             @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchSongs(query, page, limit)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.searchSongs(query, page, limit)));
     }
 
     @GetMapping("/albums")
@@ -46,7 +48,8 @@ public class SearchController {
             @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchAlbums(query, page, limit)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.searchAlbums(query, page, limit)));
     }
 
     @GetMapping("/artists")
@@ -55,7 +58,8 @@ public class SearchController {
             @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchArtists(query, page, limit)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.searchArtists(query, page, limit)));
     }
 
     @GetMapping("/playlists")
@@ -64,6 +68,7 @@ public class SearchController {
             @RequestParam @NotBlank String query,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "10") @Min(1) int limit) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.searchPlaylists(query, page, limit)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.searchPlaylists(query, page, limit)));
     }
 }

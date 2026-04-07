@@ -1,37 +1,34 @@
 package com.musicplayer.config;
 
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.List;
-
+/**
+ * Global CORS configuration.
+ *
+ * We use WebMvcConfigurer instead of a CorsFilter @Bean because:
+ *  - There is no Spring Security in this project.
+ *  - A raw CorsFilter bean requires Spring Security to call
+ *    http.cors() to be picked up for non-Security filter chains.
+ *  - WebMvcConfigurer.addCorsMappings() is always applied by
+ *    Spring MVC regardless of Security, so it is the correct
+ *    approach for a plain Spring Boot REST app.
+ */
 @Configuration
-public class CorsConfig {
+public class CorsConfig implements WebMvcConfigurer {
 
-    @Bean
-    public CorsFilter corsFilter() {
-        CorsConfiguration config = new CorsConfiguration();
-
-        config.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "https://rhythm-weaver-two.vercel.app"
-        ));
-
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
-        config.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
-        // ✅ Changed from "/api/**" to "/**"
-        // because context-path is already "/api", so routes here are relative to it
-        source.registerCorsConfiguration("/**", config);
-
-        return new CorsFilter(source);
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")          // every endpoint under /api/**
+                .allowedOrigins(
+                        "http://localhost:5173",
+                        "http://localhost:3000",
+                        "https://rhythm-weaver-two.vercel.app"
+                )
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }
