@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.function.Function;
 
 @Service
+@SuppressWarnings("null")
 public class JioSaavnService {
 
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
