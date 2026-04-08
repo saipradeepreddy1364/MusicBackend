@@ -7,18 +7,21 @@ spring:
   application:
     name: music-player-backend
   
+  # Supabase PostgreSQL Session Pooler Configuration (Port 5432)
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USER:postgres.zoxztfjptjkuapqldlha}
-    password: ${DATABASE_PASSWORD:Palagiri677245}
+    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&prepareThreshold=0
+    username: postgres.zoxztfjptjkuapqldlha
+    password: Palagiri677245
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
       connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 2
       idle-timeout: 600000
       max-lifetime: 1800000
+      connection-test-query: SELECT 1
   
+  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
@@ -26,6 +29,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
 jiosaavn:
