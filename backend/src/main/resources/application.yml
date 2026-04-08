@@ -1,68 +1,119 @@
 spring:
   application:
-    name: music-player-backend
+    name: music-backend
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 
-  # ── Database ──────────────────────────────────────────────────────────────────
-  # Supabase PostgreSQL via connection pooler (port 6543 = transaction mode)
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require}
-    username: ${DATABASE_USER:postgres.zoxztfjptjkuapqldlha}
-    password: ${DATABASE_PASSWORD:Palagiri677245}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      connection-test-query: SELECT 1
-      validation-timeout: 5000
-
-  # ── JPA ───────────────────────────────────────────────────────────────────────
-  jpa:
-    hibernate:
-      # CHANGED from "validate" to "none":
-      # "validate" causes startup failure when there are no @Entity classes
-      # mapped to the DB yet. Use "none" until you add entity classes.
-      ddl-auto: none
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        jdbc:
-          batch_size: 20
-        order_inserts: true
-        order_updates: true
-
-  # ── Cache (Caffeine in-memory) ────────────────────────────────────────────────
-  cache:
-    type: caffeine
-    caffeine:
-      spec: maximumSize=500,expireAfterWrite=10m
-
-# ── JioSaavn proxy target ─────────────────────────────────────────────────────
-# Your backend calls saavn.dev on behalf of the frontend.
-# Override via SAAVN_BASE_URL env var on Render if needed.
-jiosaavn:
-  base-url: ${SAAVN_BASE_URL:https://saavn.dev/api}
-
-# ── Server ────────────────────────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
   servlet:
-    # All your endpoints are under /api  e.g. GET /api/search/songs
     context-path: /api
-  compression:
-    enabled: true
-  tomcat:
-    threads:
-      max: 10
-    connection-timeout: 20000
 
-# ── Logging ───────────────────────────────────────────────────────────────────
-logging:
-  level:
-    com.musicplayer: INFO
-    com.zaxxer.hikari: WARN
-    org.springframework.web: WARN
+package com.music.backend;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class MusicBackendApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MusicBackendApplication.class, args);
+    }
+}
+
+package com.music.backend.controller;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestController
+public class HealthController {
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        Map<String, String> response = new HashMap<>();
+        response.put("status", "UP");
+        return response;
+    }
+}
+
+package com.music.backend.controller;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+@RestController
+public class MusicController {
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @GetMapping("/search")
+    public String searchSongs(@RequestParam String query) {
+        String url = "https://saavn.dev/api/search/songs?query=" + query;
+        return restTemplate.getForObject(url, String.class);
+    }
+}
+
+package com.music.backend.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+@Configuration
+public class AppConfig {
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+
+FROM eclipse-temurin:21-jdk
+WORKDIR /app
+COPY target/music-backend.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+
+services:
+  - type: web
+    name: music-backend
+    env: docker
+    plan: free
+    branch: main
+    healthCheckPath: /api/health
+
+.git
+node_modules
+target
+
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.music</groupId>
+    <artifactId>music-backend</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+    </parent>
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
