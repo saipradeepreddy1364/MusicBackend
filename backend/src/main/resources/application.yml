@@ -9,7 +9,7 @@ spring:
   
   # Supabase PostgreSQL Database Configuration
   datasource:
-    url: jdbc:postgresql://db.zoxztfjptjkuapqldlha.supabase.co:5432/postgres?user=postgres&password=Pradeep345
+    url: jdbc:postgresql://db.zoxztfjptjkuapqldlha.supabase.co:5432/postgres
     username: postgres
     password: Palagiri677245
     driver-class-name: org.postgresql.Driver
@@ -28,7 +28,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
 jiosaavn:
