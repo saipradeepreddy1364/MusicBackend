@@ -1,15 +1,11 @@
-spring:
-  application:
-    name: music-player-backend
-
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-
 server:
   port: ${PORT:8080}
   servlet:
     context-path: /api
 
+spring:
+  application:
+    name: music-player-backend
+
 jiosaavn:
-  base-url: https://saavn.dev/api
+  base-url: https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api
