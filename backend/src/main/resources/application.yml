@@ -9,9 +9,9 @@ spring:
   
   # Supabase PostgreSQL Database Configuration
   datasource:
-    url: jdbc:postgresql://db.zoxztfjptjkuapqldlha.supabase.co:5432/postgres
-    username: postgres
-    password: Palagiri677245
+    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require}
+    username: ${DATABASE_USER:postgres.zozztfjptjkuapqldlha}
+    password: ${DATABASE_PASSWORD:Palagiri677245}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -28,13 +28,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
 jiosaavn:
-  base-url: https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api
+  base-url: ${SAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}
 
 logging:
   level:
-    com.musicplayer: DEBUG
+    com.musicplayer: ${LOG_LEVEL:DEBUG}
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
