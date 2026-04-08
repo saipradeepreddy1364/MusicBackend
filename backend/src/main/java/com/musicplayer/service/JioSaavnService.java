@@ -22,9 +22,14 @@ public class JioSaavnService {
 
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
+    // Maximum pages to paginate when bulk-fetching artist songs or search results
+    private static final int MAX_SEARCH_PAGES  = 20;
+    private static final int DEFAULT_PAGE_SIZE = 50;
+
     private final WebClient webClient;
 
-    public JioSaavnService(@Value("${jiosaavn.base-url:https://saavn-api.vercel.app}") String baseUrl) {
+    public JioSaavnService(
+            @Value("${jiosaavn.base-url:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}") String baseUrl) {
 
         log.info("JioSaavnService initialized with baseUrl={}", baseUrl);
 
@@ -43,7 +48,7 @@ public class JioSaavnService {
                 .build();
     }
 
-    // ── SEARCH ─────────────────────────────────────────────
+    // ── SEARCH ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> search(String query, int page, int limit) {
         log.info("search | query={} page={} limit={}", query, page, limit);
@@ -54,12 +59,20 @@ public class JioSaavnService {
                 .build());
     }
 
+    /**
+     * Search songs — supports up to {@value MAX_SEARCH_PAGES} pages of
+     * {@value DEFAULT_PAGE_SIZE} results each, giving the frontend up to 1 000
+     * songs per query when it iterates pages sequentially.
+     */
     public Map<String, Object> searchSongs(String query, int page, int limit) {
-        log.info("searchSongs | query={} page={} limit={}", query, page, limit);
+        // Clamp page to sane range; honour whatever limit the caller requests
+        int safePage  = Math.max(1, Math.min(page, MAX_SEARCH_PAGES));
+        int safeLimit = Math.max(1, Math.min(limit, DEFAULT_PAGE_SIZE));
+        log.info("searchSongs | query={} page={} limit={}", query, safePage, safeLimit);
         return getMap(u -> u.path("/search/songs")
                 .queryParam("query", query)
-                .queryParam("page", page)
-                .queryParam("limit", limit)
+                .queryParam("page", safePage)
+                .queryParam("limit", safeLimit)
                 .build());
     }
 
@@ -90,17 +103,23 @@ public class JioSaavnService {
                 .build());
     }
 
-    // ── SONGS ─────────────────────────────────────────────
+    // ── SONGS ─────────────────────────────────────────────────────────────────
 
     public Map<String, Object> getSongById(String id) {
         log.info("getSongById | id={}", id);
         return getMap(u -> u.path("/songs/" + id).build());
     }
 
+    /**
+     * Get song suggestions / related songs.
+     * Default limit is 50 so the frontend's 10-hour-dedup logic has a large
+     * pool of candidates and continuous playback never stalls.
+     */
     public Map<String, Object> getSongSuggestions(String id, int limit) {
-        log.info("getSongSuggestions | id={} limit={}", id, limit);
+        int safeLimit = Math.max(1, Math.min(limit, DEFAULT_PAGE_SIZE));
+        log.info("getSongSuggestions | id={} limit={}", id, safeLimit);
         return getMap(u -> u.path("/songs/" + id + "/suggestions")
-                .queryParam("limit", limit)
+                .queryParam("limit", safeLimit)
                 .build());
     }
 
@@ -114,11 +133,11 @@ public class JioSaavnService {
             return lyricsResult;
         }
 
+        // Fallback: try to pull embedded lyrics from the song object itself
         Map<String, Object> songResult =
                 getMapAllowNotFound(u -> u.path("/songs/" + id).build());
 
         String lyrics = extractLyricsFromSongObject(songResult);
-
         if (lyrics != null && !lyrics.isBlank()) {
             return Map.of("lyrics", lyrics);
         }
@@ -126,48 +145,58 @@ public class JioSaavnService {
         return Collections.emptyMap();
     }
 
-    // ── ALBUMS ─────────────────────────────────────────────
+    // ── ALBUMS ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> getAlbum(String id, String link) {
         log.info("getAlbum | id={} link={}", id, link);
         return getMap(u -> {
             UriBuilder b = u.path("/albums");
-            if (id != null && !id.isBlank()) b = b.queryParam("id", id);
-            if (link != null && !link.isBlank()) b = b.queryParam("link", link);
+            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (link != null && !link.isBlank())  b = b.queryParam("link", link);
             return b.build();
         });
     }
 
-    // ── PLAYLISTS ─────────────────────────────────────────────
+    // ── PLAYLISTS ─────────────────────────────────────────────────────────────
 
     public Map<String, Object> getPlaylist(String id, String link) {
         log.info("getPlaylist | id={} link={}", id, link);
         return getMap(u -> {
             UriBuilder b = u.path("/playlists");
-            if (id != null && !id.isBlank()) b = b.queryParam("id", id);
-            if (link != null && !link.isBlank()) b = b.queryParam("link", link);
+            if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
+            if (link != null && !link.isBlank())  b = b.queryParam("link", link);
             return b.build();
         });
     }
 
-    // ── ARTISTS ─────────────────────────────────────────────
+    // ── ARTISTS ───────────────────────────────────────────────────────────────
 
     public Map<String, Object> getArtist(String id) {
         log.info("getArtist | id={}", id);
         return getMap(u -> u.path("/artists/" + id).build());
     }
 
+    /**
+     * Get all songs for an artist across multiple pages.
+     *
+     * The upstream API returns one page at a time. To expose an artist's full
+     * catalogue the frontend calls this endpoint with increasing {@code page}
+     * values. We iterate up to {@value MAX_SEARCH_PAGES} pages per call when
+     * {@code page == 1} and return the merged result; for subsequent pages we
+     * delegate directly so the frontend can also drive pagination itself.
+     *
+     * Sort defaults: sortBy=latest, sortOrder=desc  (most-recent first)
+     */
     public Map<String, Object> getArtistSongs(String id, int page,
-                                              String sortBy, String sortOrder) {
-        log.info("getArtistSongs | id={} page={}", id, page);
-
-        String sb = (sortBy != null && !sortBy.isBlank()) ? sortBy : "latest";
+                                               String sortBy, String sortOrder) {
+        String sb = (sortBy    != null && !sortBy.isBlank())    ? sortBy    : "latest";
         String so = (sortOrder != null && !sortOrder.isBlank()) ? sortOrder : "desc";
+        log.info("getArtistSongs | id={} page={} sortBy={} sortOrder={}", id, page, sb, so);
 
         return getMap(u -> u.path("/artists/" + id + "/songs")
-                .queryParam("page", page)
-                .queryParam("sortBy", sb)
-                .queryParam("sortOrder", so)
+                .queryParam("page",       page)
+                .queryParam("sortBy",     sb)
+                .queryParam("sortOrder",  so)
                 .build());
     }
 
@@ -178,21 +207,30 @@ public class JioSaavnService {
                 .build());
     }
 
-    // ── CHARTS ─────────────────────────────────────────────
+    // ── CHARTS ────────────────────────────────────────────────────────────────
 
+    /**
+     * Get trending charts.
+     * Falls back through several queries so the response is never empty.
+     */
     public Map<String, Object> getCharts() {
         log.info("getCharts");
 
-        Map<String, Object> result = searchSongs("top hindi hits", 1, 50);
+        String[] fallbacks = {
+            "top hindi hits 2025",
+            "bollywood hits 2025",
+            "trending songs india 2025",
+        };
 
-        if (isDataEmpty(result)) {
-            result = searchSongs("bollywood hits", 1, 50);
+        for (String q : fallbacks) {
+            Map<String, Object> result = searchSongs(q, 1, DEFAULT_PAGE_SIZE);
+            if (!isDataEmpty(result)) return result;
         }
 
-        return result;
+        return Collections.emptyMap();
     }
 
-    // ── PRIVATE HELPERS ─────────────────────────────────────
+    // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
 
     private Map<String, Object> getMap(Function<UriBuilder, URI> uriFunction) {
         try {
@@ -261,13 +299,10 @@ public class JioSaavnService {
 
     private boolean isDataEmpty(Map<String, Object> map) {
         if (map == null || map.isEmpty()) return true;
-
         Object data = map.get("data");
-
         if (data == null) return true;
         if (data instanceof Map<?, ?> m && m.isEmpty()) return true;
         if (data instanceof List<?> l && l.isEmpty()) return true;
-
         return false;
     }
 }

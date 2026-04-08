@@ -27,15 +27,23 @@ public class ArtistController {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getArtist(id)));
     }
 
+    /**
+     * Get artist's songs.
+     *
+     * The frontend calls this repeatedly with page=1, 2, 3 … up to 20 to
+     * retrieve the artist's full catalogue (up to 1 000 songs).
+     * Default sort is "latest" / "desc" so newest songs appear first.
+     */
     @GetMapping("/{id}/songs")
-    @Operation(summary = "Get artist's songs")
+    @Operation(summary = "Get artist's songs — paginate up to page 20 for full catalogue")
     public ResponseEntity<ApiResponse<Object>> getArtistSongs(
             @PathVariable String id,
-            @RequestParam(defaultValue = "1") @Min(1) int page,
-            @RequestParam(defaultValue = "popularity") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortOrder) {
+            @RequestParam(defaultValue = "1")          @Min(1) int page,
+            @RequestParam(defaultValue = "latest")              String sortBy,
+            @RequestParam(defaultValue = "desc")                String sortOrder) {
         return ResponseEntity.ok(
-                ApiResponse.success(jiosaavnService.getArtistSongs(id, page, sortBy, sortOrder)));
+                ApiResponse.success(
+                        jiosaavnService.getArtistSongs(id, page, sortBy, sortOrder)));
     }
 
     @GetMapping("/{id}/albums")
@@ -43,6 +51,7 @@ public class ArtistController {
     public ResponseEntity<ApiResponse<Object>> getArtistAlbums(
             @PathVariable String id,
             @RequestParam(defaultValue = "1") @Min(1) int page) {
-        return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getArtistAlbums(id, page)));
+        return ResponseEntity.ok(
+                ApiResponse.success(jiosaavnService.getArtistAlbums(id, page)));
     }
 }

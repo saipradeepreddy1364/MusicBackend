@@ -24,6 +24,9 @@ public class SongController {
         this.jiosaavnService = jiosaavnService;
     }
 
+    /**
+     * Get song details by ID.
+     */
     @GetMapping("/{id}")
     @Operation(summary = "Get song details by ID")
     public ResponseEntity<ApiResponse<Object>> getSong(
@@ -31,21 +34,30 @@ public class SongController {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getSongById(id)));
     }
 
+    /**
+     * Get song suggestions / related songs.
+     * Default limit raised from 10 to 50 so the frontend has a bigger pool
+     * of candidates when auto-queuing the next track after the current one ends.
+     * This helps avoid repetition when combined with the 10-hour play history.
+     */
     @GetMapping("/{id}/suggestions")
-    @Operation(summary = "Get song suggestions / related songs")
+    @Operation(summary = "Get song suggestions / related songs — returns up to 50 by default")
     public ResponseEntity<ApiResponse<Object>> getSongSuggestions(
             @PathVariable String id,
-            @RequestParam(defaultValue = "10") @Min(1) int limit) {
+            @RequestParam(defaultValue = "50") @Min(1) int limit) {
         return ResponseEntity.ok(ApiResponse.success(jiosaavnService.getSongSuggestions(id, limit)));
     }
 
+    /**
+     * Get lyrics for a song by ID.
+     * Returns 404 with a clear JSON body if lyrics are unavailable — never 500.
+     */
     @GetMapping("/{id}/lyrics")
     @Operation(summary = "Get lyrics for a song by ID")
     public ResponseEntity<?> getSongLyrics(
             @PathVariable @Parameter(description = "JioSaavn song ID") String id) {
         Map<String, Object> result = jiosaavnService.getSongLyrics(id);
         if (result == null || result.isEmpty()) {
-            // Return 404 so the frontend knows lyrics are unavailable — never 500
             return ResponseEntity.status(404).body(
                     Map.of("success", false, "message", "Lyrics not available for this song")
             );

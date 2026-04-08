@@ -18,18 +18,22 @@ public class MusicController {
         this.service = service;
     }
 
-    // ✅ SEARCH
+    /**
+     * Search songs.
+     * Default limit raised to 50 (from 10) so each page carries more songs,
+     * matching the SearchController and supporting continuous-play queues.
+     */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Map<String, Object>>> search(
             @RequestParam String query,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "1")  int page,
+            @RequestParam(defaultValue = "50") int limit) {
 
         Map<String, Object> result = service.searchSongs(query, page, limit);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    // ✅ SONG BY ID
+    /** Get a single song by its JioSaavn ID. */
     @GetMapping("/song/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getSong(@PathVariable String id) {
 

@@ -18,6 +18,12 @@ public class PlaylistController {
         this.jiosaavnService = jiosaavnService;
     }
 
+    /**
+     * Get a full playlist by its JioSaavn ID or shareable link.
+     * Provide either the {@code id} or {@code link} query parameter.
+     * The response includes all tracks in the playlist so the frontend
+     * can build the full queue without additional requests.
+     */
     @GetMapping
     @Operation(summary = "Get playlist by ID or JioSaavn link")
     public ResponseEntity<ApiResponse<Object>> getPlaylist(
