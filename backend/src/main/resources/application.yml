@@ -7,10 +7,9 @@ spring:
   application:
     name: music-player-backend
   
-  # Supabase PostgreSQL Database Configuration
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require}
-    username: ${DATABASE_USER:postgres.zozztfjptjkuapqldlha}
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER:postgres.zoxztfjptjkuapqldlha}
     password: ${DATABASE_PASSWORD:Palagiri677245}
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -20,7 +19,6 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
   
-  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
@@ -28,7 +26,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
 
 jiosaavn:
@@ -36,6 +33,6 @@ jiosaavn:
 
 logging:
   level:
-    com.musicplayer: ${LOG_LEVEL:DEBUG}
+    com.musicplayer: DEBUG
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
