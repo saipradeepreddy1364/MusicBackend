@@ -2,15 +2,12 @@ package com.musicplayer.controller;
 
 import com.musicplayer.dto.ApiResponse;
 import com.musicplayer.service.JioSaavnService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @RestController
-@Tag(name = "Health", description = "Service health checks")
 public class HealthController {
 
     private final JioSaavnService jiosaavnService;
@@ -19,36 +16,29 @@ public class HealthController {
         this.jiosaavnService = jiosaavnService;
     }
 
-    // ✅ Handles root URL hit by Render's health checker — silences "No static resource ." error
     @GetMapping("/")
-    @Operation(summary = "Root ping")
     public ResponseEntity<ApiResponse<Map<String, String>>> root() {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("status", "UP", "service", "music-player-backend")));
     }
 
     @GetMapping("/health")
-    @Operation(summary = "Backend health status")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of("status", "UP", "service", "music-player-backend")));
     }
 
     @GetMapping("/health/saavn")
-    @Operation(summary = "Check connectivity to JioSaavn upstream API")
     public ResponseEntity<ApiResponse<Map<String, String>>> checkSaavn() {
         try {
             Map<String, Object> result = jiosaavnService.searchSongs("test", 1, 1);
             if (result == null || result.isEmpty()) {
-                return ResponseEntity.status(502).body(ApiResponse.error(
-                        "JioSaavn API returned empty response"));
+                return ResponseEntity.status(502).body(ApiResponse.error("Empty response"));
             }
             return ResponseEntity.ok(ApiResponse.success(
-                    Map.of("status", "UP",
-                           "upstream", "https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api")));
+                    Map.of("status", "UP")));
         } catch (Exception ex) {
-            return ResponseEntity.status(502).body(ApiResponse.error(
-                    "JioSaavn API unreachable: " + ex.getMessage()));
+            return ResponseEntity.status(502).body(ApiResponse.error(ex.getMessage()));
         }
     }
 }
