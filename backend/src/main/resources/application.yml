@@ -7,31 +7,26 @@ spring:
   application:
     name: music-player-backend
 
-  # Supabase PostgreSQL Direct Connection
   datasource:
-    url: jdbc:postgresql://db.bhlvduyfiiwxvnqxlupq.supabase.co:5432/postgres?sslmode=require&connectTimeout=60
-    username: postgres
-    password: Palagiri677245
+    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?user=postgres.bhlvduyfiiwxvnqxlupq&password=Palagiri677245&sslmode=require}
+    username: ${DB_USERNAME:postgres.bhlvduyfiiwxvnqxlupq}
+    password: ${DB_PASSWORD:Palagiri677245}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 60000
-      # Increased pool size to handle concurrent multi-page fetch requests
-      # from the frontend (up to 20 pages × parallel section loads on Home)
-      maximum-pool-size: 20
-      minimum-idle: 3
+      maximum-pool-size: 10
+      minimum-idle: 2
       idle-timeout: 600000
       max-lifetime: 1800000
       connection-test-query: SELECT 1
 
-  # JPA Configuration
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false          # turned off in prod — reduce log noise
+    show-sql: false
     properties:
       hibernate:
         format_sql: false
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         temp:
           use_jdbc_metadata_defaults: false
     open-in-view: false
@@ -41,9 +36,10 @@ jiosaavn:
 
 logging:
   level:
-    com.musicplayer: INFO       # keep INFO; DEBUG was very noisy with 20-page fetches
+    com.musicplayer: INFO
     org.springframework.web: WARN
     org.hibernate.SQL: WARN
+    org.hibernate.orm.deprecation: ERROR
     com.zaxxer.hikari: WARN
 
 management:
