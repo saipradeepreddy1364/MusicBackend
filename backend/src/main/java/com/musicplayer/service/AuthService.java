@@ -44,7 +44,8 @@ public class AuthService {
         if (email == null || email.isBlank())    return error("Email is required");
         if (password == null || password.isBlank()) return error("Password is required");
         if (username == null || username.isBlank()) return error("Username is required");
-        if (password.length() < 6) return error("Password must be at least 6 characters");
+        if (username.trim().length() < 5) return error("Username must be at least 5 characters");
+        if (password.length() < 5) return error("Password must be at least 5 characters");
 
         String normalizedEmail = email.trim().toLowerCase();
 
