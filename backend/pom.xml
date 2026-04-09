@@ -45,6 +45,12 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- BCrypt password hashing (no full security filter chain) -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
+    </dependency>
+
     <!-- Cache -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
