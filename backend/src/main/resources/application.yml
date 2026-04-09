@@ -8,7 +8,7 @@ spring:
     name: music-player-backend
 
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?user=postgres.bhlvduyfiiwxvnqxlupq&password=Palagiri677245&sslmode=require}
+    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?user=postgres.bhlvduyfiiwxvnqxlupq&password=Palagiri677245&sslmode=require&prepareThreshold=0}
     username: ${DB_USERNAME:postgres.bhlvduyfiiwxvnqxlupq}
     password: ${DB_PASSWORD:Palagiri677245}
     driver-class-name: org.postgresql.Driver
