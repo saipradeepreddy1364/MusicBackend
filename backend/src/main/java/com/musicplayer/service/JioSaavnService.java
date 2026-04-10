@@ -126,20 +126,37 @@ public class JioSaavnService {
     public Map<String, Object> getSongLyrics(String id) {
         log.info("getSongLyrics | id={}", id);
 
+        // ── Attempt 1: dedicated lyrics endpoint ──────────────────────────────
         Map<String, Object> lyricsResult =
                 getMapAllowNotFound(u -> u.path("/songs/" + id + "/lyrics").build());
 
-        if (!isDataEmpty(lyricsResult)) {
-            return lyricsResult;
+        String lyricsText = extractLyricsFromSongObject(lyricsResult);
+        if (lyricsText != null && !lyricsText.isBlank()) {
+            return Map.of("lyrics", lyricsText);
         }
 
-        // Fallback: try to pull embedded lyrics from the song object itself
+        // Also check if the lyrics are directly in the data field as a map
+        if (!isDataEmpty(lyricsResult)) {
+            Object data = lyricsResult.get("data");
+            if (data instanceof Map<?, ?> dataMap) {
+                Object l = dataMap.get("lyrics");
+                Object s = dataMap.get("snippet");
+                String found = (l instanceof String ls && !ls.isBlank()) ? ls
+                             : (s instanceof String ss && !ss.isBlank()) ? ss : null;
+                if (found != null) return Map.of("lyrics", found);
+            }
+            if (data instanceof String ds && !ds.isBlank()) {
+                return Map.of("lyrics", ds);
+            }
+        }
+
+        // ── Attempt 2: embedded lyrics inside the song details object ─────────
         Map<String, Object> songResult =
                 getMapAllowNotFound(u -> u.path("/songs/" + id).build());
 
-        String lyrics = extractLyricsFromSongObject(songResult);
-        if (lyrics != null && !lyrics.isBlank()) {
-            return Map.of("lyrics", lyrics);
+        String embedded = extractLyricsFromSongObject(songResult);
+        if (embedded != null && !embedded.isBlank()) {
+            return Map.of("lyrics", embedded);
         }
 
         return Collections.emptyMap();
@@ -254,6 +271,10 @@ public class JioSaavnService {
             Map<String, Object> response = webClient.get()
                     .uri(uriFunction)
                     .retrieve()
+                    // Don't throw on 4xx — try to parse the body anyway
+                    .onStatus(status -> status.is4xxClientError(), clientResponse ->
+                            clientResponse.bodyToMono(String.class)
+                                    .flatMap(body -> reactor.core.publisher.Mono.empty()))
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
                     .block();
@@ -288,11 +309,20 @@ public class JioSaavnService {
     private String getLyricsFromMap(Map<?, ?> map) {
         if (map == null) return null;
 
-        Object lyrics = map.get("lyrics");
-        if (lyrics instanceof String s && !s.isBlank()) return s;
+        // Check direct fields
+        for (String key : new String[]{"lyrics", "lyric", "lyrics_snippet", "snippet", "lyricsText"}) {
+            Object val = map.get(key);
+            if (val instanceof String s && !s.isBlank()) return s;
+        }
 
-        Object snippet = map.get("lyrics_snippet");
-        if (snippet instanceof String s && !s.isBlank()) return s;
+        // Check nested "lyrics" object that may contain a "snippet" or "lyrics" key
+        Object lyricsObj = map.get("lyrics");
+        if (lyricsObj instanceof Map<?, ?> lMap) {
+            Object snippet = lMap.get("snippet");
+            if (snippet instanceof String s && !s.isBlank()) return s;
+            Object full = lMap.get("lyrics");
+            if (full instanceof String s && !s.isBlank()) return s;
+        }
 
         return null;
     }
