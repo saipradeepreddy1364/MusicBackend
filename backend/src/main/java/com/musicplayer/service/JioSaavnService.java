@@ -65,7 +65,6 @@ public class JioSaavnService {
      * songs per query when it iterates pages sequentially.
      */
     public Map<String, Object> searchSongs(String query, int page, int limit) {
-        // Clamp page to sane range; honour whatever limit the caller requests
         int safePage  = Math.max(1, Math.min(page, MAX_SEARCH_PAGES));
         int safeLimit = Math.max(1, Math.min(limit, DEFAULT_PAGE_SIZE));
         log.info("searchSongs | query={} page={} limit={}", query, safePage, safeLimit);
@@ -123,43 +122,117 @@ public class JioSaavnService {
                 .build());
     }
 
-    public Map<String, Object> getSongLyrics(String id) {
-        log.info("getSongLyrics | id={}", id);
+    /**
+     * Fetch lyrics for a song.
+     *
+     * JioSaavn identifies lyrics via a separate "lyricsId" field inside the
+     * song detail object — it is NOT the same as the song ID.
+     *
+     *   Step 1: Fetch song details to get lyricsId, check hasLyrics, and
+     *           capture any lyrics already embedded in the detail response.
+     *   Step 2: If a lyricsId was found, call the dedicated lyrics endpoint.
+     *   Step 3: Fall back to using the song ID itself as the lyricsId.
+     *
+     * Returns Map.of("lyrics", text) or Collections.emptyMap(). Never throws.
+     */
+    public Map<String, Object> getSongLyrics(String songId) {
+        log.info("getSongLyrics | songId={}", songId);
 
-        // ── Attempt 1: dedicated lyrics endpoint ──────────────────────────────
-        Map<String, Object> lyricsResult =
-                getMapAllowNotFound(u -> u.path("/songs/" + id + "/lyrics").build());
+        // ── Step 1: fetch song details for lyricsId + hasLyrics ──────────────
+        Map<String, Object> songDetails =
+                getMapAllowNotFound(u -> u.path("/songs/" + songId).build());
 
-        String lyricsText = extractLyricsFromSongObject(lyricsResult);
-        if (lyricsText != null && !lyricsText.isBlank()) {
-            return Map.of("lyrics", lyricsText);
-        }
-
-        // Also check if the lyrics are directly in the data field as a map
-        if (!isDataEmpty(lyricsResult)) {
-            Object data = lyricsResult.get("data");
-            if (data instanceof Map<?, ?> dataMap) {
-                Object l = dataMap.get("lyrics");
-                Object s = dataMap.get("snippet");
-                String found = (l instanceof String ls && !ls.isBlank()) ? ls
-                             : (s instanceof String ss && !ss.isBlank()) ? ss : null;
-                if (found != null) return Map.of("lyrics", found);
-            }
-            if (data instanceof String ds && !ds.isBlank()) {
-                return Map.of("lyrics", ds);
-            }
-        }
-
-        // ── Attempt 2: embedded lyrics inside the song details object ─────────
-        Map<String, Object> songResult =
-                getMapAllowNotFound(u -> u.path("/songs/" + id).build());
-
-        String embedded = extractLyricsFromSongObject(songResult);
+        // Check for lyrics already embedded in the detail response
+        String embedded = extractLyricsFromSongObject(songDetails);
         if (embedded != null && !embedded.isBlank()) {
+            log.info("getSongLyrics | embedded lyrics found for {}", songId);
             return Map.of("lyrics", embedded);
         }
 
+        // Extract lyricsId and hasLyrics
+        String  lyricsId  = null;
+        boolean hasLyrics = false;
+
+        Object dataObj = songDetails.get("data");
+        Map<?, ?> songData = null;
+        if (dataObj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?,?> m) {
+            songData = m;
+        } else if (dataObj instanceof Map<?,?> m) {
+            songData = m;
+        }
+
+        if (songData != null) {
+            Object hl = songData.get("hasLyrics");
+            hasLyrics = Boolean.TRUE.equals(hl) || "true".equalsIgnoreCase(String.valueOf(hl));
+            Object lid = songData.get("lyricsId");
+            if (lid == null) lid = songData.get("lyrics_id");
+            if (lid instanceof String s && !s.isBlank()) lyricsId = s;
+        }
+
+        if (!hasLyrics && lyricsId == null) {
+            log.info("getSongLyrics | hasLyrics=false, no lyricsId for {}", songId);
+            return Collections.emptyMap();
+        }
+
+        // ── Step 2: dedicated lyrics endpoint using lyricsId ─────────────────
+        // Capture into a final variable so it can be used inside the lambda
+        final String finalLyricsId = lyricsId;
+        if (finalLyricsId != null && !finalLyricsId.isBlank()) {
+            Map<String, Object> lyricsResult =
+                    getMapAllowNotFound(u -> u.path("/songs/" + finalLyricsId + "/lyrics").build());
+            String found = extractLyricsText(lyricsResult);
+            if (found != null && !found.isBlank()) {
+                log.info("getSongLyrics | found via lyricsId={} for song={}", finalLyricsId, songId);
+                return Map.of("lyrics", found);
+            }
+        }
+
+        // ── Step 3: try song ID itself as lyricsId (some API versions) ───────
+        // finalLyricsId is effectively final, safe to use in .equals()
+        if (!songId.equals(finalLyricsId)) {
+            Map<String, Object> fallback =
+                    getMapAllowNotFound(u -> u.path("/songs/" + songId + "/lyrics").build());
+            String found = extractLyricsText(fallback);
+            if (found != null && !found.isBlank()) {
+                log.info("getSongLyrics | found via songId fallback for {}", songId);
+                return Map.of("lyrics", found);
+            }
+        }
+
+        log.info("getSongLyrics | no lyrics found for {}", songId);
         return Collections.emptyMap();
+    }
+
+    /**
+     * Extract lyrics text from any lyrics-endpoint response shape.
+     * Handles flat maps, data-wrapped maps, nested lyrics objects, and lists.
+     */
+    private String extractLyricsText(Map<String, Object> response) {
+        if (response == null || response.isEmpty()) return null;
+        String[] keys = {"lyrics", "lyric", "snippet", "lyricsSnippet", "lyrics_snippet", "lyricsText"};
+        for (String key : keys) {
+            Object val = response.get(key);
+            if (val instanceof String s && !s.isBlank()) return s;
+        }
+        Object dataObj = response.get("data");
+        if (dataObj instanceof String ds && !ds.isBlank()) return ds;
+        if (dataObj instanceof Map<?, ?> dm) {
+            for (String key : keys) {
+                Object val = dm.get(key);
+                if (val instanceof String s && !s.isBlank()) return s;
+            }
+            if (dm.get("lyrics") instanceof Map<?, ?> lm) {
+                if (lm.get("snippet") instanceof String s && !s.isBlank()) return s;
+                if (lm.get("lyrics")  instanceof String s && !s.isBlank()) return s;
+            }
+        }
+        if (dataObj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?,?> first) {
+            for (String key : keys) {
+                Object val = first.get(key);
+                if (val instanceof String s && !s.isBlank()) return s;
+            }
+        }
+        return null;
     }
 
     // ── ALBUMS ────────────────────────────────────────────────────────────────
@@ -195,13 +268,6 @@ public class JioSaavnService {
 
     /**
      * Get all songs for an artist across multiple pages.
-     *
-     * The upstream API returns one page at a time. To expose an artist's full
-     * catalogue the frontend calls this endpoint with increasing {@code page}
-     * values. We iterate up to {@value MAX_SEARCH_PAGES} pages per call when
-     * {@code page == 1} and return the merged result; for subsequent pages we
-     * delegate directly so the frontend can also drive pagination itself.
-     *
      * Sort defaults: sortBy=latest, sortOrder=desc  (most-recent first)
      */
     public Map<String, Object> getArtistSongs(String id, int page,
@@ -309,13 +375,11 @@ public class JioSaavnService {
     private String getLyricsFromMap(Map<?, ?> map) {
         if (map == null) return null;
 
-        // Check direct fields
         for (String key : new String[]{"lyrics", "lyric", "lyrics_snippet", "snippet", "lyricsText"}) {
             Object val = map.get(key);
             if (val instanceof String s && !s.isBlank()) return s;
         }
 
-        // Check nested "lyrics" object that may contain a "snippet" or "lyrics" key
         Object lyricsObj = map.get("lyrics");
         if (lyricsObj instanceof Map<?, ?> lMap) {
             Object snippet = lMap.get("snippet");
