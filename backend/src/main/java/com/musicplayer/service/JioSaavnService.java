@@ -22,7 +22,6 @@ public class JioSaavnService {
 
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
-    // Maximum pages to paginate when bulk-fetching artist songs or search results
     private static final int MAX_SEARCH_PAGES  = 20;
     private static final int DEFAULT_PAGE_SIZE = 50;
 
@@ -51,194 +50,176 @@ public class JioSaavnService {
     // ── SEARCH ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> search(String query, int page, int limit) {
-        log.info("search | query={} page={} limit={}", query, page, limit);
         return getMap(u -> u.path("/search")
-                .queryParam("query", query)
-                .queryParam("page", page)
-                .queryParam("limit", limit)
-                .build());
+                .queryParam("query", query).queryParam("page", page).queryParam("limit", limit).build());
     }
 
-    /**
-     * Search songs — supports up to {@value MAX_SEARCH_PAGES} pages of
-     * {@value DEFAULT_PAGE_SIZE} results each, giving the frontend up to 1 000
-     * songs per query when it iterates pages sequentially.
-     */
     public Map<String, Object> searchSongs(String query, int page, int limit) {
         int safePage  = Math.max(1, Math.min(page, MAX_SEARCH_PAGES));
         int safeLimit = Math.max(1, Math.min(limit, DEFAULT_PAGE_SIZE));
-        log.info("searchSongs | query={} page={} limit={}", query, safePage, safeLimit);
         return getMap(u -> u.path("/search/songs")
-                .queryParam("query", query)
-                .queryParam("page", safePage)
-                .queryParam("limit", safeLimit)
-                .build());
+                .queryParam("query", query).queryParam("page", safePage).queryParam("limit", safeLimit).build());
     }
 
     public Map<String, Object> searchAlbums(String query, int page, int limit) {
-        log.info("searchAlbums | query={} page={} limit={}", query, page, limit);
         return getMap(u -> u.path("/search/albums")
-                .queryParam("query", query)
-                .queryParam("page", page)
-                .queryParam("limit", limit)
-                .build());
+                .queryParam("query", query).queryParam("page", page).queryParam("limit", limit).build());
     }
 
     public Map<String, Object> searchArtists(String query, int page, int limit) {
-        log.info("searchArtists | query={} page={} limit={}", query, page, limit);
         return getMap(u -> u.path("/search/artists")
-                .queryParam("query", query)
-                .queryParam("page", page)
-                .queryParam("limit", limit)
-                .build());
+                .queryParam("query", query).queryParam("page", page).queryParam("limit", limit).build());
     }
 
     public Map<String, Object> searchPlaylists(String query, int page, int limit) {
-        log.info("searchPlaylists | query={} page={} limit={}", query, page, limit);
         return getMap(u -> u.path("/search/playlists")
-                .queryParam("query", query)
-                .queryParam("page", page)
-                .queryParam("limit", limit)
-                .build());
+                .queryParam("query", query).queryParam("page", page).queryParam("limit", limit).build());
     }
 
     // ── SONGS ─────────────────────────────────────────────────────────────────
 
     public Map<String, Object> getSongById(String id) {
-        log.info("getSongById | id={}", id);
         return getMap(u -> u.path("/songs/" + id).build());
     }
 
-    /**
-     * Get song suggestions / related songs.
-     * Default limit is 50 so the frontend's 10-hour-dedup logic has a large
-     * pool of candidates and continuous playback never stalls.
-     */
     public Map<String, Object> getSongSuggestions(String id, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, DEFAULT_PAGE_SIZE));
-        log.info("getSongSuggestions | id={} limit={}", id, safeLimit);
         return getMap(u -> u.path("/songs/" + id + "/suggestions")
-                .queryParam("limit", safeLimit)
-                .build());
+                .queryParam("limit", safeLimit).build());
     }
 
+    // ── LYRICS ────────────────────────────────────────────────────────────────
+
     /**
-     * Fetch lyrics for a song.
+     * Fetch lyrics using an aggressive 5-path strategy.
      *
-     * JioSaavn identifies lyrics via a separate "lyricsId" field inside the
-     * song detail object — it is NOT the same as the song ID.
+     * We intentionally do NOT check hasLyrics — that flag is unreliable
+     * in the JioSaavn unofficial API and causes many false negatives.
      *
-     *   Step 1: Fetch song details to get lyricsId, check hasLyrics, and
-     *           capture any lyrics already embedded in the detail response.
-     *   Step 2: If a lyricsId was found, call the dedicated lyrics endpoint.
-     *   Step 3: Fall back to using the song ID itself as the lyricsId.
+     *   Path 1 — /songs/{songId}/lyrics
+     *   Path 2 — /lyrics?id={songId}
+     *   Path 3 — Extract embedded lyrics from /songs/{songId} detail
+     *   Path 4 — /songs/{lyricsId}/lyrics   (lyricsId from song detail)
+     *   Path 5 — /lyrics?id={lyricsId}
      *
      * Returns Map.of("lyrics", text) or Collections.emptyMap(). Never throws.
      */
     public Map<String, Object> getSongLyrics(String songId) {
         log.info("getSongLyrics | songId={}", songId);
 
-        // ── Step 1: fetch song details for lyricsId + hasLyrics ──────────────
-        Map<String, Object> songDetails =
-                getMapAllowNotFound(u -> u.path("/songs/" + songId).build());
+        // Path 1
+        String found = tryLyricsPath(u -> u.path("/songs/" + songId + "/lyrics").build());
+        if (found != null) { log.info("getSongLyrics | path1 hit | songId={}", songId); return Map.of("lyrics", found); }
 
-        // Check for lyrics already embedded in the detail response
+        // Path 2
+        found = tryLyricsPath(u -> u.path("/lyrics").queryParam("id", songId).build());
+        if (found != null) { log.info("getSongLyrics | path2 hit | songId={}", songId); return Map.of("lyrics", found); }
+
+        // Fetch song details for embedded lyrics + lyricsId
+        Map<String, Object> songDetails = getMapAllowNotFound(u -> u.path("/songs/" + songId).build());
+
+        // Path 3 — embedded
         String embedded = extractLyricsFromSongObject(songDetails);
         if (embedded != null && !embedded.isBlank()) {
-            log.info("getSongLyrics | embedded lyrics found for {}", songId);
+            log.info("getSongLyrics | path3 embedded | songId={}", songId);
             return Map.of("lyrics", embedded);
         }
 
-        // Extract lyricsId and hasLyrics
-        String  lyricsId  = null;
-        boolean hasLyrics = false;
+        // Extract lyricsId
+        final String lyricsId = extractLyricsId(songDetails);
 
-        Object dataObj = songDetails.get("data");
-        Map<?, ?> songData = null;
-        if (dataObj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?,?> m) {
-            songData = m;
-        } else if (dataObj instanceof Map<?,?> m) {
-            songData = m;
+        if (lyricsId != null && !lyricsId.equals(songId)) {
+            // Path 4
+            found = tryLyricsPath(u -> u.path("/songs/" + lyricsId + "/lyrics").build());
+            if (found != null) { log.info("getSongLyrics | path4 hit | lyricsId={}", lyricsId); return Map.of("lyrics", found); }
+
+            // Path 5
+            found = tryLyricsPath(u -> u.path("/lyrics").queryParam("id", lyricsId).build());
+            if (found != null) { log.info("getSongLyrics | path5 hit | lyricsId={}", lyricsId); return Map.of("lyrics", found); }
         }
 
-        if (songData != null) {
-            Object hl = songData.get("hasLyrics");
-            hasLyrics = Boolean.TRUE.equals(hl) || "true".equalsIgnoreCase(String.valueOf(hl));
-            Object lid = songData.get("lyricsId");
-            if (lid == null) lid = songData.get("lyrics_id");
-            if (lid instanceof String s && !s.isBlank()) lyricsId = s;
-        }
-
-        if (!hasLyrics && lyricsId == null) {
-            log.info("getSongLyrics | hasLyrics=false, no lyricsId for {}", songId);
-            return Collections.emptyMap();
-        }
-
-        // ── Step 2: dedicated lyrics endpoint using lyricsId ─────────────────
-        // Capture into a final variable so it can be used inside the lambda
-        final String finalLyricsId = lyricsId;
-        if (finalLyricsId != null && !finalLyricsId.isBlank()) {
-            Map<String, Object> lyricsResult =
-                    getMapAllowNotFound(u -> u.path("/songs/" + finalLyricsId + "/lyrics").build());
-            String found = extractLyricsText(lyricsResult);
-            if (found != null && !found.isBlank()) {
-                log.info("getSongLyrics | found via lyricsId={} for song={}", finalLyricsId, songId);
-                return Map.of("lyrics", found);
-            }
-        }
-
-        // ── Step 3: try song ID itself as lyricsId (some API versions) ───────
-        // finalLyricsId is effectively final, safe to use in .equals()
-        if (!songId.equals(finalLyricsId)) {
-            Map<String, Object> fallback =
-                    getMapAllowNotFound(u -> u.path("/songs/" + songId + "/lyrics").build());
-            String found = extractLyricsText(fallback);
-            if (found != null && !found.isBlank()) {
-                log.info("getSongLyrics | found via songId fallback for {}", songId);
-                return Map.of("lyrics", found);
-            }
-        }
-
-        log.info("getSongLyrics | no lyrics found for {}", songId);
+        log.info("getSongLyrics | not found | songId={}", songId);
         return Collections.emptyMap();
     }
 
+    /** Try a single lyrics endpoint. Returns text on success, null otherwise. */
+    private String tryLyricsPath(Function<UriBuilder, URI> uriFunction) {
+        try {
+            return extractLyricsText(getMapAllowNotFound(uriFunction));
+        } catch (Exception e) {
+            log.warn("tryLyricsPath | {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** Extract lyricsId from a song detail response. Does NOT check hasLyrics. */
+    private String extractLyricsId(Map<String, Object> songDetails) {
+        if (songDetails == null || songDetails.isEmpty()) return null;
+        Object dataObj = songDetails.get("data");
+        Map<?, ?> songData = null;
+        if (dataObj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?, ?> m) {
+            songData = m;
+        } else if (dataObj instanceof Map<?, ?> m) {
+            songData = m;
+        }
+        if (songData == null) return null;
+        Object lid = songData.get("lyricsId");
+        if (lid == null) lid = songData.get("lyrics_id");
+        if (lid instanceof String s && !s.isBlank()) return s;
+        return null;
+    }
+
     /**
-     * Extract lyrics text from any lyrics-endpoint response shape.
-     * Handles flat maps, data-wrapped maps, nested lyrics objects, and lists.
+     * Exhaustive lyrics text extractor — handles every known response shape:
+     *   { lyrics: "..." }
+     *   { data: { lyrics: "..." } }
+     *   { data: { lyrics: { snippet: "..." } } }
+     *   { data: [ { lyrics: "..." } ] }
+     *   { snippet / lyricsSnippet / lyricsText / fullLyrics / text: "..." }
      */
     private String extractLyricsText(Map<String, Object> response) {
         if (response == null || response.isEmpty()) return null;
-        String[] keys = {"lyrics", "lyric", "snippet", "lyricsSnippet", "lyrics_snippet", "lyricsText"};
+
+        String[] keys = {"lyrics", "lyric", "snippet", "lyricsSnippet",
+                         "lyrics_snippet", "lyricsText", "fullLyrics", "text"};
+
+        // Top-level flat keys
         for (String key : keys) {
             Object val = response.get(key);
             if (val instanceof String s && !s.isBlank()) return s;
         }
+
         Object dataObj = response.get("data");
+
         if (dataObj instanceof String ds && !ds.isBlank()) return ds;
+
         if (dataObj instanceof Map<?, ?> dm) {
             for (String key : keys) {
                 Object val = dm.get(key);
                 if (val instanceof String s && !s.isBlank()) return s;
             }
+            // Nested lyrics object
             if (dm.get("lyrics") instanceof Map<?, ?> lm) {
-                if (lm.get("snippet") instanceof String s && !s.isBlank()) return s;
-                if (lm.get("lyrics")  instanceof String s && !s.isBlank()) return s;
+                if (lm.get("snippet")    instanceof String s && !s.isBlank()) return s;
+                if (lm.get("lyrics")     instanceof String s && !s.isBlank()) return s;
+                if (lm.get("fullLyrics") instanceof String s && !s.isBlank()) return s;
             }
         }
-        if (dataObj instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?,?> first) {
+
+        if (dataObj instanceof List<?> list && !list.isEmpty()
+                && list.get(0) instanceof Map<?, ?> first) {
             for (String key : keys) {
                 Object val = first.get(key);
                 if (val instanceof String s && !s.isBlank()) return s;
             }
         }
+
         return null;
     }
 
     // ── ALBUMS ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> getAlbum(String id, String link) {
-        log.info("getAlbum | id={} link={}", id, link);
         return getMap(u -> {
             UriBuilder b = u.path("/albums");
             if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
@@ -250,7 +231,6 @@ public class JioSaavnService {
     // ── PLAYLISTS ─────────────────────────────────────────────────────────────
 
     public Map<String, Object> getPlaylist(String id, String link) {
-        log.info("getPlaylist | id={} link={}", id, link);
         return getMap(u -> {
             UriBuilder b = u.path("/playlists");
             if (id   != null && !id.isBlank())   b = b.queryParam("id",   id);
@@ -262,58 +242,37 @@ public class JioSaavnService {
     // ── ARTISTS ───────────────────────────────────────────────────────────────
 
     public Map<String, Object> getArtist(String id) {
-        log.info("getArtist | id={}", id);
         return getMap(u -> u.path("/artists/" + id).build());
     }
 
-    /**
-     * Get all songs for an artist across multiple pages.
-     * Sort defaults: sortBy=latest, sortOrder=desc  (most-recent first)
-     */
     public Map<String, Object> getArtistSongs(String id, int page,
                                                String sortBy, String sortOrder) {
         String sb = (sortBy    != null && !sortBy.isBlank())    ? sortBy    : "latest";
         String so = (sortOrder != null && !sortOrder.isBlank()) ? sortOrder : "desc";
-        log.info("getArtistSongs | id={} page={} sortBy={} sortOrder={}", id, page, sb, so);
-
         return getMap(u -> u.path("/artists/" + id + "/songs")
-                .queryParam("page",       page)
-                .queryParam("sortBy",     sb)
-                .queryParam("sortOrder",  so)
+                .queryParam("page",      page)
+                .queryParam("sortBy",    sb)
+                .queryParam("sortOrder", so)
                 .build());
     }
 
     public Map<String, Object> getArtistAlbums(String id, int page) {
-        log.info("getArtistAlbums | id={} page={}", id, page);
         return getMap(u -> u.path("/artists/" + id + "/albums")
-                .queryParam("page", page)
-                .build());
+                .queryParam("page", page).build());
     }
 
     // ── CHARTS ────────────────────────────────────────────────────────────────
 
-    /**
-     * Get trending charts.
-     * Falls back through several queries so the response is never empty.
-     */
     public Map<String, Object> getCharts() {
-        log.info("getCharts");
-
-        String[] fallbacks = {
-            "top hindi hits 2025",
-            "bollywood hits 2025",
-            "trending songs india 2025",
-        };
-
+        String[] fallbacks = {"top hindi hits 2025", "bollywood hits 2025", "trending songs india 2025"};
         for (String q : fallbacks) {
             Map<String, Object> result = searchSongs(q, 1, DEFAULT_PAGE_SIZE);
             if (!isDataEmpty(result)) return result;
         }
-
         return Collections.emptyMap();
     }
 
-    // ── PRIVATE HELPERS ───────────────────────────────────────────────────────
+    // ── PRIVATE HTTP HELPERS ──────────────────────────────────────────────────
 
     private Map<String, Object> getMap(Function<UriBuilder, URI> uriFunction) {
         try {
@@ -323,11 +282,9 @@ public class JioSaavnService {
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
                     .block();
-
             return response != null ? response : Collections.emptyMap();
-
         } catch (Exception e) {
-            log.error("getMap | error: {}", e.getMessage());
+            log.error("getMap | {}", e.getMessage());
             return Collections.emptyMap();
         }
     }
@@ -337,16 +294,13 @@ public class JioSaavnService {
             Map<String, Object> response = webClient.get()
                     .uri(uriFunction)
                     .retrieve()
-                    // Don't throw on 4xx — try to parse the body anyway
                     .onStatus(status -> status.is4xxClientError(), clientResponse ->
                             clientResponse.bodyToMono(String.class)
                                     .flatMap(body -> reactor.core.publisher.Mono.empty()))
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .timeout(Duration.ofSeconds(25))
                     .block();
-
             return response != null ? response : Collections.emptyMap();
-
         } catch (Exception e) {
             log.warn("getMapAllowNotFound | {}", e.getMessage());
             return Collections.emptyMap();
@@ -355,31 +309,21 @@ public class JioSaavnService {
 
     private String extractLyricsFromSongObject(Map<String, Object> songMap) {
         if (songMap == null || songMap.isEmpty()) return null;
-
         Object dataObj = songMap.get("data");
-
-        if (dataObj instanceof List<?> list && !list.isEmpty()) {
-            Object first = list.get(0);
-            if (first instanceof Map<?, ?> map) {
-                return getLyricsFromMap(map);
-            }
-        }
-
-        if (dataObj instanceof Map<?, ?> map) {
+        if (dataObj instanceof List<?> list && !list.isEmpty()
+                && list.get(0) instanceof Map<?, ?> map) {
             return getLyricsFromMap(map);
         }
-
+        if (dataObj instanceof Map<?, ?> map) return getLyricsFromMap(map);
         return getLyricsFromMap(songMap);
     }
 
     private String getLyricsFromMap(Map<?, ?> map) {
         if (map == null) return null;
-
-        for (String key : new String[]{"lyrics", "lyric", "lyrics_snippet", "snippet", "lyricsText"}) {
+        for (String key : new String[]{"lyrics", "lyric", "lyrics_snippet", "snippet", "lyricsText", "fullLyrics", "text"}) {
             Object val = map.get(key);
             if (val instanceof String s && !s.isBlank()) return s;
         }
-
         Object lyricsObj = map.get("lyrics");
         if (lyricsObj instanceof Map<?, ?> lMap) {
             Object snippet = lMap.get("snippet");
@@ -387,7 +331,6 @@ public class JioSaavnService {
             Object full = lMap.get("lyrics");
             if (full instanceof String s && !s.isBlank()) return s;
         }
-
         return null;
     }
 
