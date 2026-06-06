@@ -4,7 +4,8 @@ services:
     runtime: docker
     plan: free
     branch: main
-    dockerfilePath: ./backend/Dockerfile
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: SAAVN_BASE_URL
         value: https://api.piped.private.coffee
