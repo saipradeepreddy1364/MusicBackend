@@ -7,34 +7,14 @@ spring:
   application:
     name: music-player-backend
 
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?user=postgres.bhlvduyfiiwxvnqxlupq&password=Palagiri677245&sslmode=require&prepareThreshold=0}
-    username: ${DB_USERNAME:postgres.bhlvduyfiiwxvnqxlupq}
-    password: ${DB_PASSWORD:Palagiri677245}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      connection-timeout: 60000
-      maximum-pool-size: 10
-      minimum-idle: 2
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      connection-test-query: SELECT 1
-
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: false
-        temp:
-          use_jdbc_metadata_defaults: false
-    open-in-view: false
+  # No database — all user data handled by frontend via Supabase
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
 jiosaavn:
-  # Primary Piped API mirror. JioSaavnService will auto-fallback to other mirrors on failure.
+  # Primary Piped API mirror. Auto-fallbacks to other mirrors on failure.
   base-url: ${SAAVN_BASE_URL:https://api.piped.private.coffee}
 
 spring.codec:
@@ -44,9 +24,6 @@ logging:
   level:
     com.musicplayer: INFO
     org.springframework.web: WARN
-    org.hibernate.SQL: WARN
-    org.hibernate.orm.deprecation: ERROR
-    com.zaxxer.hikari: WARN
 
 management:
   endpoints:
