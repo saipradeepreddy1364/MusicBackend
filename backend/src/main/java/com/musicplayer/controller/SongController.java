@@ -82,4 +82,29 @@ public class SongController {
         }
         return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build();
     }
+
+    /**
+     * Returns all available video stream URLs for a YouTube video, grouped by quality.
+     * Example response:
+     * [
+     *   { "quality": "1080p", "mimeType": "video/mp4", "url": "https://..." },
+     *   { "quality": "720p",  "mimeType": "video/mp4", "url": "https://..." },
+     *   { "quality": "480p",  "mimeType": "video/mp4", "url": "https://..." },
+     *   { "quality": "360p",  "mimeType": "video/mp4", "url": "https://..." }
+     * ]
+     * Note: URLs expire in ~6 hours. Use immediately.
+     */
+    @GetMapping("/{id}/video-url")
+    @Operation(summary = "Get all video quality stream URLs for a YouTube video")
+    public ResponseEntity<ApiResponse<Object>> getVideoStreamUrls(
+            @PathVariable @Parameter(description = "YouTube video ID") String id) {
+        java.util.List<java.util.Map<String, Object>> streams =
+                jiosaavnService.getVideoStreamUrls(id);
+        if (streams == null || streams.isEmpty()) {
+            return ResponseEntity.status(404)
+                    .body(ApiResponse.error("No video streams available for this video"));
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                java.util.Map.of("videoId", id, "streams", streams)));
+    }
 }

@@ -892,6 +892,58 @@ public class JioSaavnService {
         return extractBestAudioStream(streamData);
     }
 
+    /**
+     * Returns all available video stream URLs for a YouTube video, grouped by quality.
+     * Includes 360p, 480p, 720p, 1080p etc. where available.
+     * Returns an empty list if no video streams are found.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getVideoStreamUrls(String videoId) {
+        log.info("getVideoStreamUrls | videoId={}", videoId);
+        Map<String, Object> streamData = getMapAllowNotFound(u -> u.path("/streams/" + videoId).build());
+        if (streamData == null || streamData.isEmpty()) return Collections.emptyList();
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        Object videoStreamsObj = streamData.get("videoStreams");
+        if (videoStreamsObj instanceof List<?> videoStreams) {
+            for (Object vsObj : videoStreams) {
+                if (vsObj instanceof Map<?, ?> vs) {
+                    String url      = (String) vs.get("url");
+                    String quality  = (String) vs.get("quality");
+                    String mimeType = (String) vs.get("mimeType");
+                    boolean videoOnly = Boolean.TRUE.equals(vs.get("videoOnly"));
+                    if (url == null || url.isEmpty()) continue;
+                    // Skip video-only streams (no audio track) unless no others exist
+                    if (videoOnly) continue;
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("quality",  quality  != null ? quality  : "unknown");
+                    entry.put("mimeType", mimeType != null ? mimeType : "video/mp4");
+                    entry.put("url",      url);
+                    result.add(entry);
+                }
+            }
+            // Fallback: if all streams are videoOnly, include them anyway
+            if (result.isEmpty()) {
+                for (Object vsObj : videoStreams) {
+                    if (vsObj instanceof Map<?, ?> vs) {
+                        String url      = (String) vs.get("url");
+                        String quality  = (String) vs.get("quality");
+                        String mimeType = (String) vs.get("mimeType");
+                        if (url == null || url.isEmpty()) continue;
+                        Map<String, Object> entry = new LinkedHashMap<>();
+                        entry.put("quality",  quality  != null ? quality  : "unknown");
+                        entry.put("mimeType", mimeType != null ? mimeType : "video/mp4");
+                        entry.put("url",      url);
+                        entry.put("videoOnly", true);
+                        result.add(entry);
+                    }
+                }
+            }
+        }
+        log.info("getVideoStreamUrls | Found {} video streams for videoId={}", result.size(), videoId);
+        return result;
+    }
+
     // ── PRIVATE HTTP HELPERS ──────────────────────────────────────────────────
 
     /**
