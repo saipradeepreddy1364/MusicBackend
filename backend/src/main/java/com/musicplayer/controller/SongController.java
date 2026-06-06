@@ -64,4 +64,22 @@ public class SongController {
                     Map.of("success", false, "message", "Lyrics not available for this song"));
         }
     }
+
+    /** Redirect to the direct audio stream URL. */
+    @GetMapping("/{id}/stream")
+    @Operation(summary = "Redirect to direct YouTube audio stream URL")
+    public ResponseEntity<Void> getSongStream(
+            @PathVariable @Parameter(description = "YouTube video ID") String id) {
+        try {
+            String directUrl = jiosaavnService.getDirectAudioStreamUrl(id);
+            if (directUrl != null && !directUrl.isEmpty()) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                        .location(java.net.URI.create(directUrl))
+                        .build();
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+        return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build();
+    }
 }

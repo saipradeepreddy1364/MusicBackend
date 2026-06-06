@@ -34,7 +34,11 @@ spring:
     open-in-view: false
 
 jiosaavn:
-  base-url: ${SAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev/api}
+  # Primary Piped API mirror. JioSaavnService will auto-fallback to other mirrors on failure.
+  base-url: ${SAAVN_BASE_URL:https://api.piped.private.coffee}
+
+spring.codec:
+  max-in-memory-size: 52428800  # 50 MB — needed for audio download proxy
 
 logging:
   level:
