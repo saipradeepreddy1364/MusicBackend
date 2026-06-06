@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -65,17 +67,19 @@ public class SongController {
         }
     }
 
-    /** Redirect to the direct audio stream URL. */
+    /** Stream audio bytes proxied through backend. */
     @GetMapping("/{id}/stream")
-    @Operation(summary = "Redirect to direct YouTube audio stream URL")
-    public ResponseEntity<Void> getSongStream(
+    @Operation(summary = "Stream proxied YouTube audio bytes")
+    public ResponseEntity<Resource> getSongStream(
             @PathVariable @Parameter(description = "YouTube video ID") String id) {
         try {
-            String directUrl = jiosaavnService.getDirectAudioStreamUrl(id);
-            if (directUrl != null && !directUrl.isEmpty()) {
-                return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
-                        .location(java.net.URI.create(directUrl))
-                        .build();
+            byte[] audioBytes = jiosaavnService.fetchAudioBytes(id);
+            if (audioBytes != null && audioBytes.length > 0) {
+                ByteArrayResource resource = new ByteArrayResource(audioBytes);
+                return ResponseEntity.ok()
+                        .contentType(org.springframework.http.MediaType.parseMediaType("audio/webm"))
+                        .contentLength(audioBytes.length)
+                        .body(resource);
             }
         } catch (Exception e) {
             // Ignore
