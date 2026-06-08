@@ -87,7 +87,7 @@ public class SongController {
             if (audioBytes != null && audioBytes.length > 0) {
                 ByteArrayResource resource = new ByteArrayResource(audioBytes);
                 return ResponseEntity.ok()
-                        .contentType(org.springframework.http.MediaType.parseMediaType("audio/webm"))
+                        .contentType(org.springframework.http.MediaType.parseMediaType("audio/mp4"))
                         .contentLength(audioBytes.length)
                         .body(resource);
             }
