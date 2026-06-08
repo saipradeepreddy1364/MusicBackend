@@ -6,6 +6,6 @@ services:
     branch: main
     dockerfilePath: ./backend/Dockerfile
     envVars:
-      - key: JIOSAAVN_BASE_URL
-        value: https://jiosaavn-api.pradeepreddypalagiri.workers.dev
+      - key: SAAVN_BASE_URL
+        value: https://api.piped.private.coffee
     healthCheckPath: /api/health
