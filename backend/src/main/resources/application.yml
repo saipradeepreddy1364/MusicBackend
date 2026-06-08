@@ -14,8 +14,8 @@ spring:
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
 jiosaavn:
-  # Primary Piped API mirror. Auto-fallbacks to other mirrors on failure.
-  base-url: ${SAAVN_BASE_URL:https://api.piped.private.coffee}
+  # Base URL of the hosted JioSaavn API Worker
+  base-url: ${JIOSAAVN_BASE_URL:https://jiosaavn-api.pradeepreddypalagiri.workers.dev}
 
 spring.codec:
   max-in-memory-size: 52428800  # 50 MB — needed for audio download proxy
