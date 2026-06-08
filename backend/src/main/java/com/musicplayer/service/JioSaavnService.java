@@ -194,10 +194,148 @@ public class JioSaavnService {
 
     // ── LYRICS ────────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getSongLyrics(String songId) {
         log.info("getSongLyrics | songId={}", songId);
-        // Stub/fallback since worker does not expose lyrics endpoint
+        Map<String, Object> songData = getSongById(songId);
+        if (songData == null || !Boolean.TRUE.equals(songData.get("success"))) {
+            log.warn("getSongLyrics | Failed to fetch song details for ID={}", songId);
+            return Collections.emptyMap();
+        }
+        
+        Object dataObj = songData.get("data");
+        if (!(dataObj instanceof List<?> list) || list.isEmpty()) {
+            log.warn("getSongLyrics | No data list in song details for ID={}", songId);
+            return Collections.emptyMap();
+        }
+        
+        Object first = list.get(0);
+        if (!(first instanceof Map<?, ?> songMap)) {
+            log.warn("getSongLyrics | First item in song details is not a Map for ID={}", songId);
+            return Collections.emptyMap();
+        }
+
+        String trackName = (String) songMap.get("name");
+        if (trackName == null || trackName.trim().isEmpty()) {
+            log.warn("getSongLyrics | Track name is empty in details for ID={}", songId);
+            return Collections.emptyMap();
+        }
+
+        // Extract album name
+        String albumName = "";
+        Object albumObj = songMap.get("album");
+        if (albumObj instanceof Map<?, ?> albumMap) {
+            albumName = (String) albumMap.get("name");
+        }
+
+        // Extract duration
+        int duration = 0;
+        Object durationObj = songMap.get("duration");
+        if (durationObj instanceof Number number) {
+            duration = number.intValue();
+        }
+
+        // Extract artist name
+        String artistName = "";
+        Object artistsObj = songMap.get("artists");
+        if (artistsObj instanceof Map<?, ?> artistsMap) {
+            Object primaryObj = artistsMap.get("primary");
+            if (primaryObj instanceof List<?> primaryList && !primaryList.isEmpty()) {
+                List<String> artistNames = new ArrayList<>();
+                for (Object art : primaryList) {
+                    if (art instanceof Map<?, ?> artMap) {
+                        String name = (String) artMap.get("name");
+                        if (name != null && !name.trim().isEmpty()) {
+                            artistNames.add(name);
+                        }
+                    }
+                }
+                if (!artistNames.isEmpty()) {
+                    artistName = String.join(", ", artistNames);
+                }
+            }
+        }
+
+        log.info("getSongLyrics | Resolved metadata: trackName='{}', artistName='{}', albumName='{}', duration={}", 
+                trackName, artistName, albumName, duration);
+
+        WebClient lrcClient = WebClient.builder()
+                .baseUrl("https://lrclib.net")
+                .defaultHeader("User-Agent", "RhythmWeaver/1.0 (https://github.com/saipradeepreddy1364/rhythm-weaver)")
+                .build();
+
+        // Try GET /api/get
+        try {
+            final String finalArtist = artistName;
+            final String finalAlbum = albumName;
+            final int finalDuration = duration;
+            Map<String, Object> lrcResponse = lrcClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/api/get")
+                            .queryParam("track_name", trackName)
+                            .queryParam("artist_name", finalArtist)
+                            .queryParam("album_name", finalAlbum)
+                            .queryParam("duration", finalDuration)
+                            .build())
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .timeout(Duration.ofSeconds(10))
+                    .block();
+
+            if (lrcResponse != null) {
+                Map<String, Object> formatted = formatLyricsResponse(lrcResponse);
+                if (!formatted.isEmpty()) {
+                    log.info("getSongLyrics | Lyrics successfully retrieved via GET /api/get");
+                    return formatted;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("getSongLyrics | LRCLIB exact match failed for '{}' - '{}': {}", trackName, artistName, e.getMessage());
+        }
+
+        // Fallback: search query with trackName and artistName
+        try {
+            final String query = trackName + " " + artistName;
+            List<Map<String, Object>> searchResults = lrcClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/api/search")
+                            .queryParam("q", query)
+                            .build())
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+                    .timeout(Duration.ofSeconds(10))
+                    .block();
+
+            if (searchResults != null && !searchResults.isEmpty()) {
+                // Return the best match (first one)
+                Map<String, Object> bestMatch = searchResults.get(0);
+                Map<String, Object> formatted = formatLyricsResponse(bestMatch);
+                if (!formatted.isEmpty()) {
+                    log.info("getSongLyrics | Lyrics successfully retrieved via search fallback query '{}'", query);
+                    return formatted;
+                }
+            }
+        } catch (Exception e) {
+            log.error("getSongLyrics | LRCLIB search fallback failed for '{}': {}", trackName, e.getMessage());
+        }
+
+        log.warn("getSongLyrics | No lyrics found on LRCLIB for ID={}", songId);
         return Collections.emptyMap();
+    }
+
+    private Map<String, Object> formatLyricsResponse(Map<String, Object> lrc) {
+        if (lrc == null) {
+            return Collections.emptyMap();
+        }
+        String plain = (String) lrc.get("plainLyrics");
+        if (plain == null || plain.trim().isEmpty()) {
+            plain = (String) lrc.get("syncedLyrics");
+        }
+        if (plain == null || plain.trim().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("lyrics", plain);
+        return response;
     }
 
     // ── ALBUMS ────────────────────────────────────────────────────────────────
