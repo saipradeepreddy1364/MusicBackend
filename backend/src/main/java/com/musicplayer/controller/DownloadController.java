@@ -21,7 +21,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/downloads")
-@CrossOrigin("*")
 @Tag(name = "Downloads", description = "Audio download endpoints for offline listening")
 public class DownloadController {
 
