@@ -83,11 +83,31 @@ $$;
 -- 7. AUTO-CREATE PROFILE on signup
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
+declare
+  v_username text;
+  v_candidate text;
+  v_counter integer := 1;
 begin
+  -- get target username candidate
+  v_username := coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1));
+  
+  -- ensure username is not empty
+  if v_username is null or v_username = '' then
+    v_username := 'user';
+  end if;
+  
+  v_candidate := v_username;
+  
+  -- loop to find a unique username
+  while exists (select 1 from public.profiles where username = v_candidate) loop
+    v_candidate := v_username || v_counter::text;
+    v_counter := v_counter + 1;
+  end loop;
+
   insert into public.profiles(id, username)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1))
+    v_candidate
   )
   on conflict (id) do nothing;
   return new;
