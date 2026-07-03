@@ -46,4 +46,11 @@ public class MusicController {
 
         return ResponseEntity.ok(ApiResponse.success(result));
     }
+
+    /** Get prefetched homepage data (sections, filmAlbums, artistAlbums). */
+    @GetMapping("/home")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getHome() {
+        Map<String, Object> result = service.getHomeData();
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
 }
