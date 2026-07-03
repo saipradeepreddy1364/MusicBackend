@@ -10,9 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
+import jakarta.annotation.PostConstruct;
 import java.net.URI;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @SuppressWarnings("null")
@@ -687,9 +689,30 @@ public class JioSaavnService {
         "guru randhawa songs"
     );
 
-    private Map<String, Object> cachedHomeData = null;
-    private long cacheExpiryTime = 0;
+    private volatile Map<String, Object> cachedHomeData = null;
+    private volatile long cacheExpiryTime = 0;
     private final Object cacheLock = new Object();
+
+    /**
+     * Pre-warm the home data cache on application startup so the first user request
+     * is served instantly from cache instead of triggering a cold build.
+     */
+    @PostConstruct
+    public void warmUpHomeDataCache() {
+        log.info("warmUpHomeDataCache | Pre-warming home data cache in background...");
+        CompletableFuture.runAsync(() -> {
+            try {
+                Map<String, Object> data = buildHomeData();
+                synchronized (cacheLock) {
+                    cachedHomeData = data;
+                    cacheExpiryTime = System.currentTimeMillis() + Duration.ofHours(3).toMillis();
+                }
+                log.info("warmUpHomeDataCache | Home data cache populated successfully.");
+            } catch (Exception e) {
+                log.warn("warmUpHomeDataCache | Failed to pre-warm cache: {}", e.getMessage());
+            }
+        });
+    }
 
     public Map<String, Object> getHomeData() {
         synchronized (cacheLock) {
