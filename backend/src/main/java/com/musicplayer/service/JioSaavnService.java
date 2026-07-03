@@ -702,8 +702,12 @@ public class JioSaavnService {
         log.info("warmUpHomeDataCache | Pre-warming home data cache in background...");
         CompletableFuture.runAsync(() -> {
             try {
-                Map<String, Object> data = buildHomeData();
                 synchronized (cacheLock) {
+                    if (cachedHomeData != null && System.currentTimeMillis() < cacheExpiryTime) {
+                        log.info("warmUpHomeDataCache | Cache already warm.");
+                        return;
+                    }
+                    Map<String, Object> data = buildHomeData();
                     cachedHomeData = data;
                     cacheExpiryTime = System.currentTimeMillis() + Duration.ofHours(3).toMillis();
                 }
@@ -720,16 +724,13 @@ public class JioSaavnService {
                 log.info("getHomeData | Returning cached home screen payload");
                 return cachedHomeData;
             }
-        }
-        
-        Map<String, Object> freshData = buildHomeData();
-        
-        synchronized (cacheLock) {
+            
+            log.info("getHomeData | Cache miss or expired. Building home data...");
+            Map<String, Object> freshData = buildHomeData();
             cachedHomeData = freshData;
             cacheExpiryTime = System.currentTimeMillis() + Duration.ofHours(3).toMillis();
+            return freshData;
         }
-        
-        return freshData;
     }
 
     private int getTodaysSeed() {
