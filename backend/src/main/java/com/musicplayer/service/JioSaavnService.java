@@ -15,6 +15,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 @SuppressWarnings("null")
@@ -23,6 +25,7 @@ public class JioSaavnService {
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
     private final WebClient webClient;
+    private final ExecutorService homeExecutor = Executors.newFixedThreadPool(16);
 
     public JioSaavnService(
             @Value("${jiosaavn.base-url:https://jiosaavn-api.pradeepreddypalagiri.workers.dev}") String baseUrl) {
@@ -858,36 +861,31 @@ public class JioSaavnService {
             Map.entry("Trending Malayalam", MALAYALAM_QUERIES)
         );
 
-        java.util.stream.IntStream.range(0, sectionConfigs.size()).parallel().forEach(i -> {
+        List<CompletableFuture<Void>> sectionFutures = new ArrayList<>();
+        for (int i = 0; i < sectionConfigs.size(); i++) {
+            final int index = i;
             Map.Entry<String, List<String>> config = sectionConfigs.get(i);
             String title = config.getKey();
             int sectionSeed = i + 1;
             String query = pickQuery(config.getValue(), sectionSeed);
             
-            List<Map<String, Object>> songs = fetchSongsList(query, 20);
-            
-            // Filter out devotional songs and those without audio URL
-            List<Map<String, Object>> filteredSongs = songs.stream()
-                .filter(s -> !isDevotionalSong(s))
-                .toList();
+            sectionFutures.add(CompletableFuture.runAsync(() -> {
+                List<Map<String, Object>> songs = fetchSongsList(query, 20);
+                
+                // Filter out devotional songs and those without audio URL
+                List<Map<String, Object>> filteredSongs = songs.stream()
+                    .filter(s -> !isDevotionalSong(s))
+                    .toList();
 
-            Map<String, Object> section = new LinkedHashMap<>();
-            section.put("title", title);
-            section.put("songs", filteredSongs);
-            
-            synchronized (sections) {
-                sections.add(section);
-            }
-        });
-
-        // Maintain order of sections
-        sections.sort(Comparator.comparingInt(s -> {
-            String t = (String) s.get("title");
-            for (int i = 0; i < sectionConfigs.size(); i++) {
-                if (sectionConfigs.get(i).getKey().equals(t)) return i;
-            }
-            return sectionConfigs.size();
-        }));
+                Map<String, Object> section = new LinkedHashMap<>();
+                section.put("title", title);
+                section.put("songs", filteredSongs);
+                
+                synchronized (sections) {
+                    sections.add(section);
+                }
+            }, homeExecutor));
+        }
 
         // 2. Build filmAlbums (using FILM_DISCOVERY_QUERIES_POOL shuffled with today's seed)
         log.info("buildHomeData | Building filmAlbums dynamically...");
@@ -899,52 +897,128 @@ public class JioSaavnService {
         Map<String, String> albumCovers = new HashMap<>();
         Set<String> seenSongIds = new HashSet<>();
 
-        selectedFilmQueries.stream().parallel().forEach(q -> {
-            List<Map<String, Object>> songs = fetchSongsList(q, 20);
-            for (Map<String, Object> song : songs) {
-                if (isDevotionalSong(song)) continue;
-                String songId = (String) song.get("id");
-                if (songId == null) continue;
-                
-                String albumName = "";
-                Object albumObj = song.get("album");
-                if (albumObj instanceof Map<?, ?> albumMap) {
-                    albumName = (String) albumMap.get("name");
-                }
-                if (albumName == null || albumName.trim().isEmpty()) {
-                    albumName = (String) song.get("movie");
-                }
-                if (albumName == null || albumName.trim().isEmpty()) continue;
-                
-                String key = albumName.toLowerCase().trim();
-                
-                synchronized (albumGroups) {
-                    if (!albumGroups.containsKey(key)) {
-                        albumGroups.put(key, new ArrayList<>());
+        List<CompletableFuture<Void>> filmFutures = new ArrayList<>();
+        for (String q : selectedFilmQueries) {
+            filmFutures.add(CompletableFuture.runAsync(() -> {
+                List<Map<String, Object>> songs = fetchSongsList(q, 20);
+                for (Map<String, Object> song : songs) {
+                    if (isDevotionalSong(song)) continue;
+                    String songId = (String) song.get("id");
+                    if (songId == null) continue;
+                    
+                    String albumName = "";
+                    Object albumObj = song.get("album");
+                    if (albumObj instanceof Map<?, ?> albumMap) {
+                        albumName = (String) albumMap.get("name");
                     }
-                    if (!seenSongIds.contains(songId)) {
-                        seenSongIds.add(songId);
-                        albumGroups.get(key).add(song);
+                    if (albumName == null || albumName.trim().isEmpty()) {
+                        albumName = (String) song.get("movie");
+                    }
+                    if (albumName == null || albumName.trim().isEmpty()) continue;
+                    
+                    String key = albumName.toLowerCase().trim();
+                    
+                    synchronized (albumGroups) {
+                        if (!albumGroups.containsKey(key)) {
+                            albumGroups.put(key, new ArrayList<>());
+                        }
+                        if (!seenSongIds.contains(songId)) {
+                            seenSongIds.add(songId);
+                            albumGroups.get(key).add(song);
+                        }
+                    }
+                    
+                    String coverUrl = "";
+                    Object imageObj = song.get("image");
+                    if (imageObj instanceof List<?> imgList && !imgList.isEmpty()) {
+                        Object last = imgList.get(imgList.size() - 1);
+                        if (last instanceof Map<?, ?> urlMap) {
+                            coverUrl = (String) urlMap.get("url");
+                            if (coverUrl == null) coverUrl = (String) urlMap.get("link");
+                        }
+                    }
+                    if (coverUrl != null && !coverUrl.isEmpty()) {
+                        synchronized (albumCovers) {
+                            albumCovers.put(key, coverUrl);
+                        }
                     }
                 }
-                
-                String coverUrl = "";
-                Object imageObj = song.get("image");
-                if (imageObj instanceof List<?> imgList && !imgList.isEmpty()) {
-                    Object last = imgList.get(imgList.size() - 1);
-                    if (last instanceof Map<?, ?> urlMap) {
-                        coverUrl = (String) urlMap.get("url");
-                        if (coverUrl == null) coverUrl = (String) urlMap.get("link");
-                    }
-                }
-                if (coverUrl != null && !coverUrl.isEmpty()) {
-                    synchronized (albumCovers) {
-                        albumCovers.put(key, coverUrl);
-                    }
-                }
-            }
-        });
+            }, homeExecutor));
+        }
 
+        // 3. Build artistAlbums (using ARTIST_DISCOVERY_QUERIES shuffled with today's seed)
+        log.info("buildHomeData | Building artistAlbums dynamically...");
+        List<Map<String, Object>> artistAlbums = new ArrayList<>();
+        List<String> shuffledArtistQueries = seededShuffle(ARTIST_DISCOVERY_QUERIES, todaySeed);
+        List<String> selectedArtistQueries = shuffledArtistQueries.subList(0, Math.min(8, shuffledArtistQueries.size()));
+
+        Map<String, List<Map<String, Object>>> artistGroups = new LinkedHashMap<>();
+        Map<String, String> artistCovers = new HashMap<>();
+        Set<String> artistSongSeen = new HashSet<>();
+
+        List<CompletableFuture<Void>> artistFutures = new ArrayList<>();
+        for (String q : selectedArtistQueries) {
+            artistFutures.add(CompletableFuture.runAsync(() -> {
+                List<Map<String, Object>> songs = fetchSongsList(q, 20);
+                for (Map<String, Object> song : songs) {
+                    if (isDevotionalSong(song)) continue;
+                    String songId = (String) song.get("id");
+                    if (songId == null) continue;
+                    
+                    String name = getArtistName(song);
+                    if (name == null || name.length() < 2) continue;
+                    
+                    String key = name.toLowerCase().trim();
+                    synchronized (artistGroups) {
+                        if (!artistGroups.containsKey(key)) {
+                            artistGroups.put(key, new ArrayList<>());
+                        }
+                        if (!artistSongSeen.contains(songId)) {
+                            artistSongSeen.add(songId);
+                            artistGroups.get(key).add(song);
+                        }
+                    }
+                    
+                    String coverUrl = "";
+                    Object imageObj = song.get("image");
+                    if (imageObj instanceof List<?> imgList && !imgList.isEmpty()) {
+                        Object last = imgList.get(imgList.size() - 1);
+                        if (last instanceof Map<?, ?> urlMap) {
+                            coverUrl = (String) urlMap.get("url");
+                            if (coverUrl == null) coverUrl = (String) urlMap.get("link");
+                        }
+                    }
+                    if (coverUrl != null && !coverUrl.isEmpty()) {
+                        synchronized (artistCovers) {
+                            artistCovers.put(key, coverUrl);
+                        }
+                    }
+                }
+            }, homeExecutor));
+        }
+
+        // Join all futures concurrently
+        List<CompletableFuture<Void>> allFutures = new ArrayList<>();
+        allFutures.addAll(sectionFutures);
+        allFutures.addAll(filmFutures);
+        allFutures.addAll(artistFutures);
+
+        try {
+            CompletableFuture.allOf(allFutures.toArray(new CompletableFuture[0])).join();
+        } catch (Exception e) {
+            log.error("buildHomeData | Parallel processing failed: {}", e.getMessage());
+        }
+
+        // Maintain order of sections
+        sections.sort(Comparator.comparingInt(s -> {
+            String t = (String) s.get("title");
+            for (int i = 0; i < sectionConfigs.size(); i++) {
+                if (sectionConfigs.get(i).getKey().equals(t)) return i;
+            }
+            return sectionConfigs.size();
+        }));
+
+        // Convert film album groups to structured list
         albumGroups.forEach((key, songsList) -> {
             if (songsList.size() >= 3) {
                 Map<String, Object> album = new LinkedHashMap<>();
@@ -973,54 +1047,7 @@ public class JioSaavnService {
         filmAlbums.sort((a, b) -> ((List<?>) b.get("songs")).size() - ((List<?>) a.get("songs")).size());
         List<Map<String, Object>> finalFilmAlbums = filmAlbums.stream().limit(25).toList();
 
-        // 3. Build artistAlbums (using ARTIST_DISCOVERY_QUERIES shuffled with today's seed)
-        log.info("buildHomeData | Building artistAlbums dynamically...");
-        List<Map<String, Object>> artistAlbums = new ArrayList<>();
-        List<String> shuffledArtistQueries = seededShuffle(ARTIST_DISCOVERY_QUERIES, todaySeed);
-        List<String> selectedArtistQueries = shuffledArtistQueries.subList(0, Math.min(8, shuffledArtistQueries.size()));
-
-        Map<String, List<Map<String, Object>>> artistGroups = new LinkedHashMap<>();
-        Map<String, String> artistCovers = new HashMap<>();
-        Set<String> artistSongSeen = new HashSet<>();
-
-        selectedArtistQueries.stream().parallel().forEach(q -> {
-            List<Map<String, Object>> songs = fetchSongsList(q, 20);
-            for (Map<String, Object> song : songs) {
-                if (isDevotionalSong(song)) continue;
-                String songId = (String) song.get("id");
-                if (songId == null) continue;
-                
-                String name = getArtistName(song);
-                if (name == null || name.length() < 2) continue;
-                
-                String key = name.toLowerCase().trim();
-                synchronized (artistGroups) {
-                    if (!artistGroups.containsKey(key)) {
-                        artistGroups.put(key, new ArrayList<>());
-                    }
-                    if (!artistSongSeen.contains(songId)) {
-                        artistSongSeen.add(songId);
-                        artistGroups.get(key).add(song);
-                    }
-                }
-                
-                String coverUrl = "";
-                Object imageObj = song.get("image");
-                if (imageObj instanceof List<?> imgList && !imgList.isEmpty()) {
-                    Object last = imgList.get(imgList.size() - 1);
-                    if (last instanceof Map<?, ?> urlMap) {
-                        coverUrl = (String) urlMap.get("url");
-                        if (coverUrl == null) coverUrl = (String) urlMap.get("link");
-                    }
-                }
-                if (coverUrl != null && !coverUrl.isEmpty()) {
-                    synchronized (artistCovers) {
-                        artistCovers.put(key, coverUrl);
-                    }
-                }
-            }
-        });
-
+        // Convert artist groups to structured list
         List<Map.Entry<String, List<Map<String, Object>>>> topArtists = artistGroups.entrySet().stream()
             .filter(e -> e.getValue().size() >= 2)
             .sorted((a, b) -> b.getValue().size() - a.getValue().size())
