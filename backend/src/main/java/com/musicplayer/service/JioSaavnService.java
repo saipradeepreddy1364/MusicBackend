@@ -25,7 +25,7 @@ public class JioSaavnService {
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
 
     private final WebClient webClient;
-    private final ExecutorService homeExecutor = Executors.newFixedThreadPool(16);
+    private final ExecutorService homeExecutor = Executors.newFixedThreadPool(4);
 
     public JioSaavnService(
             @Value("${jiosaavn.base-url:https://jiosaavn-api.pradeepreddypalagiri.workers.dev}") String baseUrl) {
