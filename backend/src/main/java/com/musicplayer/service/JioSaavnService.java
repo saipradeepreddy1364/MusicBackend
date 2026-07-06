@@ -671,6 +671,33 @@ public class JioSaavnService {
         "top telugu film " + CURRENT_YEAR
     );
 
+    // ── Telugu melody / classic pools (past-year hits for Quick Picks diversity) ─
+    private static final List<String> TELUGU_MELODY_QUERIES = List.of(
+        "telugu melody songs 2023",
+        "telugu melody songs 2022",
+        "telugu melody songs 2024",
+        "best telugu melody hits 2021",
+        "super hit telugu melody 2020",
+        "telugu soft melody songs",
+        "telugu heart touching songs",
+        "telugu feel good songs",
+        "best telugu love songs",
+        "telugu melody songs sid sriram"
+    );
+
+    private static final List<String> TELUGU_CLASSIC_QUERIES = List.of(
+        "sp balasubrahmanyam telugu songs",
+        "old telugu classic songs",
+        "evergreen telugu songs",
+        "telugu retro hits",
+        "80s 90s telugu superhit songs",
+        "ilayaraja telugu songs",
+        "mm keeravani telugu songs",
+        "dsp telugu hits 2018 2019 2020",
+        "thaman s telugu hits",
+        "best telugu songs all time"
+    );
+
     private static final List<String> FILM_DISCOVERY_QUERIES_POOL = List.of(
         "new hindi film songs " + CURRENT_YEAR,
         "latest bollywood movie " + CURRENT_YEAR,
@@ -889,6 +916,8 @@ public class JioSaavnService {
             Map.entry("Telugu Hits " + CURRENT_YEAR, TELUGU_YEAR_QUERIES),
             Map.entry("Trending Hindi", HINDI_QUERIES),
             Map.entry("Trending Telugu", TELUGU_QUERIES),
+            Map.entry("Telugu Melodies", TELUGU_MELODY_QUERIES),
+            Map.entry("Telugu Classics", TELUGU_CLASSIC_QUERIES),
             Map.entry("Trending Tamil", TAMIL_QUERIES),
             Map.entry("Latest Bollywood", BOLLYWOOD_QUERIES),
             Map.entry("Top Punjabi", PUNJABI_QUERIES),
