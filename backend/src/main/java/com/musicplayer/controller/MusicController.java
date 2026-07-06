@@ -9,7 +9,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/music")
-@CrossOrigin("*")
 public class MusicController {
 
     private final JioSaavnService service;
