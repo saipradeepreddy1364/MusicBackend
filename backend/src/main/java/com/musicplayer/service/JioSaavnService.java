@@ -462,7 +462,7 @@ public class JioSaavnService {
 
     public byte[] fetchAudioBytes(String songId) {
         log.info("fetchAudioBytes | songId={}", songId);
-        String audioUrl = getDirectAudioStreamUrl(songId);
+        String audioUrl = resolveAudioUrl(songId);
         if (audioUrl == null || audioUrl.isEmpty()) {
             log.warn("fetchAudioBytes | No audio URL found for songId={}", songId);
             return null;
@@ -488,7 +488,45 @@ public class JioSaavnService {
         }
     }
 
+    public String resolveYoutubeUrl(String videoId) {
+        log.info("resolveYoutubeUrl | videoId={}", videoId);
+        String[] cmd = {
+            "python", "-c",
+            "import yt_dlp; ydl = yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'quiet': True, 'no_warnings': True}); print(ydl.extract_info('https://www.youtube.com/watch?v=" + videoId + "', download=False)['url'])"
+        };
+        if (new java.io.File("/opt/venv/bin/python").exists()) {
+            cmd[0] = "/opt/venv/bin/python";
+        }
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            String line;
+            String lastUrl = null;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.startsWith("http://") || line.startsWith("https://")) {
+                    lastUrl = line;
+                }
+            }
+            process.waitFor();
+            if (lastUrl != null) {
+                log.info("resolveYoutubeUrl | Successfully resolved YouTube stream URL for videoId={}", videoId);
+                return lastUrl;
+            }
+        } catch (Exception e) {
+            log.error("resolveYoutubeUrl | Failed to resolve videoId={}: {}", videoId, e.getMessage());
+        }
+        return null;
+    }
+
     public String resolveAudioUrl(String songId) {
+        if (songId != null && songId.startsWith("yt-")) {
+            return resolveYoutubeUrl(songId.replace("yt-", ""));
+        }
         return getDirectAudioStreamUrl(songId);
     }
 

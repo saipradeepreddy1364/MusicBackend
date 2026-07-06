@@ -7,6 +7,10 @@ RUN mvn clean package -DskipTests -q
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+RUN apt-get update && apt-get install -y python3 python3-pip python3-venv curl && \
+    python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip yt-dlp && \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/music-player-backend-*.jar app.jar
 
 EXPOSE 8080
