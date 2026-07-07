@@ -505,15 +505,30 @@ public class JioSaavnService {
         }
     }
 
-    public String resolveYoutubeUrl(String videoId) {
-        debugLog("resolveYoutubeUrl | videoId={}", videoId);
-        String[] cmd = {
-            "python3", "-c",
-            "import yt_dlp; ydl = yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'quiet': True, 'no_warnings': True}); print(ydl.extract_info('https://www.youtube.com/watch?v=" + videoId + "', download=False)['url'])"
-        };
-        if (new java.io.File("/opt/venv/bin/python").exists()) {
-            cmd[0] = "/opt/venv/bin/python";
+    public String resolveYoutubeUrlViaYtdlp(String videoId) {
+        debugLog("resolveYoutubeUrlViaYtdlp | videoId={}", videoId);
+        List<String> cmd = new ArrayList<>();
+        String os = System.getProperty("os.name").toLowerCase();
+        
+        if (os.contains("win")) {
+            cmd.add("yt-dlp");
+        } else {
+            if (new java.io.File("/opt/venv/bin/yt-dlp").exists()) {
+                cmd.add("/opt/venv/bin/yt-dlp");
+            } else if (new java.io.File("/opt/venv/bin/python").exists()) {
+                cmd.add("/opt/venv/bin/python");
+                cmd.add("-m");
+                cmd.add("yt_dlp");
+            } else {
+                cmd.add("yt-dlp");
+            }
         }
+        
+        cmd.add("-f");
+        cmd.add("bestaudio");
+        cmd.add("-g");
+        cmd.add("https://www.youtube.com/watch?v=" + videoId);
+        
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
@@ -533,15 +548,138 @@ public class JioSaavnService {
             }
             int exitCode = process.waitFor();
             if (lastUrl != null) {
-                debugLog("resolveYoutubeUrl | Successfully resolved YouTube stream URL for videoId={}", videoId);
+                debugLog("resolveYoutubeUrlViaYtdlp | Successfully resolved YouTube stream URL for videoId={}", videoId);
                 return lastUrl;
             } else {
-                debugLog("resolveYoutubeUrl | Failed to resolve videoId={}. Exit code: {}. Process output:\n{}", 
+                debugLog("resolveYoutubeUrlViaYtdlp | Failed to resolve videoId={}. Exit code: {}. Process output:\n{}", 
                           videoId, exitCode, output.toString());
             }
         } catch (Exception e) {
-            debugLog("resolveYoutubeUrl | Failed to resolve videoId={} due to exception. Error: {}", videoId, e.getMessage());
+            debugLog("resolveYoutubeUrlViaYtdlp | Failed to resolve videoId={} due to exception. Error: {}", videoId, e.getMessage());
         }
+        return null;
+    }
+
+    public String resolveYoutubeUrlViaPiped(String videoId) {
+        debugLog("resolveYoutubeUrlViaPiped | videoId={}", videoId);
+        List<String> instances = List.of(
+            "https://pipedapi.adminforge.de",
+            "https://pipedapi.projectsegfau.lt",
+            "https://pipedapi.kavin.rocks",
+            "https://pipedapi-libre.kavin.rocks",
+            "https://pipedapi.leptons.xyz",
+            "https://api.looleh.xyz",
+            "https://piapi.ggtyler.dev",
+            "https://pipedapi.moomoo.me",
+            "https://pipedapi.ox.am",
+            "https://piped-api.garudalinux.org",
+            "https://pipedapi.tokhmi.xyz"
+        );
+        
+        for (String instance : instances) {
+            try {
+                debugLog("resolveYoutubeUrlViaPiped | Trying instance: {}", instance);
+                Map<String, Object> response = WebClient.builder()
+                        .baseUrl(instance)
+                        .defaultHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                        .build()
+                        .get()
+                        .uri("/streams/" + videoId)
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                        .timeout(Duration.ofSeconds(4))
+                        .block();
+                        
+                if (response != null && response.get("audioStreams") instanceof List<?> streams) {
+                    if (!streams.isEmpty()) {
+                        // Pick the last stream (highest quality)
+                        Object last = streams.get(streams.size() - 1);
+                        if (last instanceof Map<?, ?> streamMap) {
+                            String url = (String) streamMap.get("url");
+                            if (url != null && !url.isEmpty()) {
+                                debugLog("resolveYoutubeUrlViaPiped | Successfully resolved via {}", instance);
+                                return url;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                debugLog("resolveYoutubeUrlViaPiped | Failed for instance {}: {}", instance, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    public String resolveYoutubeUrlViaInvidious(String videoId) {
+        debugLog("resolveYoutubeUrlViaInvidious | videoId={}", videoId);
+        List<String> instances = List.of(
+            "https://iv.melmac.space",
+            "https://invidious.flokinet.to",
+            "https://invidious.privacydev.net",
+            "https://invidious.nerdvpn.de",
+            "https://invidious.slipfox.xyz",
+            "https://inv.tux.pizza"
+        );
+        
+        for (String instance : instances) {
+            try {
+                debugLog("resolveYoutubeUrlViaInvidious | Trying instance: {}", instance);
+                Map<String, Object> response = WebClient.builder()
+                        .baseUrl(instance)
+                        .defaultHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                        .build()
+                        .get()
+                        .uri("/api/v1/videos/" + videoId)
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                        .timeout(Duration.ofSeconds(4))
+                        .block();
+                        
+                if (response != null && response.get("adaptiveFormats") instanceof List<?> formats) {
+                    for (Object formatObj : formats) {
+                        if (formatObj instanceof Map<?, ?> formatMap) {
+                            String type = (String) formatMap.get("type");
+                            if (type != null && type.startsWith("audio/")) {
+                                String url = (String) formatMap.get("url");
+                                if (url != null && !url.isEmpty()) {
+                                    debugLog("resolveYoutubeUrlViaInvidious | Successfully resolved via {}", instance);
+                                    return url;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                debugLog("resolveYoutubeUrlViaInvidious | Failed for instance {}: {}", instance, e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    public String resolveYoutubeUrl(String videoId) {
+        debugLog("resolveYoutubeUrl | videoId={}", videoId);
+        
+        // 1. Try yt-dlp first
+        String resolvedUrl = resolveYoutubeUrlViaYtdlp(videoId);
+        if (resolvedUrl != null && !resolvedUrl.isEmpty()) {
+            return resolvedUrl;
+        }
+        
+        // 2. Fall back to Piped
+        debugLog("resolveYoutubeUrl | yt-dlp failed. Trying Piped fallback...");
+        resolvedUrl = resolveYoutubeUrlViaPiped(videoId);
+        if (resolvedUrl != null && !resolvedUrl.isEmpty()) {
+            return resolvedUrl;
+        }
+        
+        // 3. Fall back to Invidious
+        debugLog("resolveYoutubeUrl | Piped failed. Trying Invidious fallback...");
+        resolvedUrl = resolveYoutubeUrlViaInvidious(videoId);
+        if (resolvedUrl != null && !resolvedUrl.isEmpty()) {
+            return resolvedUrl;
+        }
+        
+        debugLog("resolveYoutubeUrl | All resolution methods failed for videoId={}", videoId);
         return null;
     }
 
