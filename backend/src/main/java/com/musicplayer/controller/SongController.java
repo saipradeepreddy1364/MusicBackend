@@ -88,6 +88,12 @@ public class SongController {
         return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build();
     }
 
+    @GetMapping("/debug/logs")
+    @Operation(summary = "Get last 200 debug log entries from JioSaavnService")
+    public ResponseEntity<java.util.List<String>> getDebugLogs() {
+        return ResponseEntity.ok(new java.util.ArrayList<>(com.musicplayer.service.JioSaavnService.debugLogs));
+    }
+
     /**
      * Returns all available video stream URLs for a YouTube video, grouped by quality.
      * Example response:

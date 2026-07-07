@@ -23,6 +23,17 @@ import java.util.concurrent.Executors;
 public class JioSaavnService {
 
     private static final Logger log = LoggerFactory.getLogger(JioSaavnService.class);
+    
+    public static final java.util.Queue<String> debugLogs = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    public void debugLog(String format, Object... args) {
+        String msg = org.slf4j.helpers.MessageFormatter.arrayFormat(format, args).getMessage();
+        log.info("DEBUG_LOG | " + msg);
+        if (debugLogs.size() > 200) {
+            debugLogs.poll();
+        }
+        debugLogs.add(new java.util.Date() + " | " + msg);
+    }
 
     private final WebClient webClient;
     private final ExecutorService homeExecutor = Executors.newFixedThreadPool(4);
@@ -461,13 +472,13 @@ public class JioSaavnService {
     // ── AUDIO DOWNLOAD / PROXY ────────────────────────────────────────────────
 
     public byte[] fetchAudioBytes(String songId) {
-        log.info("fetchAudioBytes | songId={}", songId);
+        debugLog("fetchAudioBytes | songId={}", songId);
         String audioUrl = resolveAudioUrl(songId);
         if (audioUrl == null || audioUrl.isEmpty()) {
-            log.warn("fetchAudioBytes | No audio URL found for songId={}", songId);
+            debugLog("fetchAudioBytes | No audio URL found for songId={}", songId);
             return null;
         }
-        log.info("fetchAudioBytes | Downloading from url={}", audioUrl);
+        debugLog("fetchAudioBytes | Downloading from url={}", audioUrl);
         try {
             WebClient raw = WebClient.builder()
                     .defaultHeader("User-Agent",
@@ -476,22 +487,28 @@ public class JioSaavnService {
                             "Chrome/120.0.0.0 Safari/537.36")
                     .codecs(c -> c.defaultCodecs().maxInMemorySize(50 * 1024 * 1024)) // 50MB
                     .build();
-            return raw.get()
+            byte[] bytes = raw.get()
                     .uri(URI.create(audioUrl))
                     .retrieve()
                     .bodyToMono(byte[].class)
                     .timeout(Duration.ofSeconds(90))
                     .block();
+            if (bytes != null) {
+                debugLog("fetchAudioBytes | Success: downloaded {} bytes for songId={}", bytes.length, songId);
+            } else {
+                debugLog("fetchAudioBytes | Received null bytes for songId={}", songId);
+            }
+            return bytes;
         } catch (Exception e) {
-            log.error("fetchAudioBytes | Failed to download audio for songId={}: {}", songId, e.getMessage());
+            debugLog("fetchAudioBytes | Failed to download audio for songId={}. Error: {}", songId, e.getMessage());
             return null;
         }
     }
 
     public String resolveYoutubeUrl(String videoId) {
-        log.info("resolveYoutubeUrl | videoId={}", videoId);
+        debugLog("resolveYoutubeUrl | videoId={}", videoId);
         String[] cmd = {
-            "python", "-c",
+            "python3", "-c",
             "import yt_dlp; ydl = yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'quiet': True, 'no_warnings': True}); print(ydl.extract_info('https://www.youtube.com/watch?v=" + videoId + "', download=False)['url'])"
         };
         if (new java.io.File("/opt/venv/bin/python").exists()) {
@@ -505,20 +522,25 @@ public class JioSaavnService {
                 new java.io.InputStreamReader(process.getInputStream())
             );
             String line;
+            StringBuilder output = new StringBuilder();
             String lastUrl = null;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
+                output.append(line).append("\n");
                 if (line.startsWith("http://") || line.startsWith("https://")) {
                     lastUrl = line;
                 }
             }
-            process.waitFor();
+            int exitCode = process.waitFor();
             if (lastUrl != null) {
-                log.info("resolveYoutubeUrl | Successfully resolved YouTube stream URL for videoId={}", videoId);
+                debugLog("resolveYoutubeUrl | Successfully resolved YouTube stream URL for videoId={}", videoId);
                 return lastUrl;
+            } else {
+                debugLog("resolveYoutubeUrl | Failed to resolve videoId={}. Exit code: {}. Process output:\n{}", 
+                          videoId, exitCode, output.toString());
             }
         } catch (Exception e) {
-            log.error("resolveYoutubeUrl | Failed to resolve videoId={}: {}", videoId, e.getMessage());
+            debugLog("resolveYoutubeUrl | Failed to resolve videoId={} due to exception. Error: {}", videoId, e.getMessage());
         }
         return null;
     }
