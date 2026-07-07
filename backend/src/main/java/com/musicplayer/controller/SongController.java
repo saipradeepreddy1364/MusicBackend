@@ -72,16 +72,7 @@ public class SongController {
     @Operation(summary = "Stream proxied YouTube audio bytes")
     public ResponseEntity<?> getSongStream(
             @PathVariable @Parameter(description = "YouTube video ID") String id) {
-        try {
-            String audioUrl = jiosaavnService.resolveAudioUrl(id);
-            if (audioUrl != null && !audioUrl.isEmpty()) {
-                return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
-                        .location(java.net.URI.create(audioUrl))
-                        .build();
-            }
-        } catch (Exception e) {
-            // Ignore and fall back to proxying
-        }
+        // Always proxy the bytes directly to bypass client-side ISP geo-blocks on saavncdn.com
         try {
             byte[] audioBytes = jiosaavnService.fetchAudioBytes(id);
             if (audioBytes != null && audioBytes.length > 0) {
