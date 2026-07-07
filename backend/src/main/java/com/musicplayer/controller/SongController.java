@@ -74,13 +74,22 @@ public class SongController {
             @PathVariable @Parameter(description = "YouTube video ID") String id) {
         // Always proxy the bytes directly to bypass client-side ISP geo-blocks on saavncdn.com
         try {
-            byte[] audioBytes = jiosaavnService.fetchAudioBytes(id);
-            if (audioBytes != null && audioBytes.length > 0) {
-                ByteArrayResource resource = new ByteArrayResource(audioBytes);
-                return ResponseEntity.ok()
-                        .contentType(org.springframework.http.MediaType.parseMediaType("audio/mp4"))
-                        .contentLength(audioBytes.length)
-                        .body(resource);
+            if (id != null && id.startsWith("yt-")) {
+                String youtubeUrl = jiosaavnService.resolveYoutubeUrl(id.replace("yt-", ""));
+                if (youtubeUrl != null && !youtubeUrl.isEmpty()) {
+                    return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                            .location(java.net.URI.create(youtubeUrl))
+                            .build();
+                }
+            } else {
+                byte[] audioBytes = jiosaavnService.fetchAudioBytes(id);
+                if (audioBytes != null && audioBytes.length > 0) {
+                    ByteArrayResource resource = new ByteArrayResource(audioBytes);
+                    return ResponseEntity.ok()
+                            .contentType(org.springframework.http.MediaType.parseMediaType("audio/mp4"))
+                            .contentLength(audioBytes.length)
+                            .body(resource);
+                }
             }
         } catch (Exception e) {
             // Ignore
